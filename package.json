@@ -1,0 +1,9 @@
+{
+  "name": "gateio-serverless-api",
+  "version": "1.0.0",
+  "description": "Vercel function for Gate.io data fetching",
+  "main": "api/fetch-gate-data.js",
+  "dependencies": {
+    "node-fetch": "^2.6.1" 
+  }
+}
