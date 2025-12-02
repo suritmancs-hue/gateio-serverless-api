@@ -101,14 +101,12 @@ export default async function handler(req, res) {
         const frHistory = result.data;
         
         // Data terbaru (N): Data ke-0 karena API Gate.io mengembalikan data terbaru di indeks 0
-        const latestFR = parseFloat(frHistory[0].rate); 
-        
+        const latestFR = parseFloat(frHistory[0].r);
         // Data sebelumnya (N-1): Data di indeks 1
-        const prevFR = parseFloat(frHistory[1].rate); 
+        const prevFR = parseFloat(frHistory[1].r);
 
         // Pastikan tidak ada pembagian dengan nol dan data valid
-        if (!isNaN(latestFR) && !isNaN(prevFR) && prevFR !== 0) {
-            // Kolom G = (FR sekarang - FR sebelumnya) / FR sebelumnya
+       if (!isNaN(latestFR) && !isNaN(prevFR) && prevFR !== 0 && isFinite(latestFR) && isFinite(prevFR)) {
             frChangeRatio = (latestFR - prevFR) / prevFR;
         }
 
