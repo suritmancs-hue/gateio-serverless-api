@@ -111,7 +111,7 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
     
     let trueCount = 0;
     const endIndex = volumes.length; 
-    const ITERATION_COUNT = 3;
+    const ITERATION_COUNT = 2;
 
     // --- KONFIGURASI PARAMETER (UBAH DI SINI) ---
     const OFFSET_TO_START = 4; // Offset: Seberapa jauh kita melihat ke belakang (skip candle baru)
@@ -202,16 +202,16 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
         )
 
         const isCalmValid = (
-             ( (atr_n <= 0.001) && (atrp_n <= 2.5) && (atrStabilityScore <= 0.10) && (buyavgrasio > 1.115) ) || 
-             ( (atr_n <= 0.015) && (atrp_n <= 1.7) && (atrStabilityScore <= 0.35) && (buyavgrasio > 1.115) ) ||
-             ( (atr_n <= 0.050) && (atrp_n <= 1.1) && (atrStabilityScore <= 0.65) && (buyavgrasio > 1.115) )
+             ( (atr_n <= 0.001) && (atrp_n <= 2.5) && (atrStabilityScore <= 0.10) && (buyavgrasio > 1.25) ) || 
+             ( (atr_n <= 0.015) && (atrp_n <= 1.7) && (atrStabilityScore <= 0.35) && (buyavgrasio > 1.25) ) ||
+             ( (atr_n <= 0.050) && (atrp_n <= 1.1) && (atrStabilityScore <= 0.65) && (buyavgrasio > 1.25) )
         );
 
        if (isSpikeValid && isCalmValid) {
             trueCount++;
         }
     }
-    return (trueCount > 1) ? "✅" : "❌";
+    return (trueCount > 0) ? "✅" : "❌";
 }
 // ----------------------------------
 
