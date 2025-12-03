@@ -57,7 +57,6 @@ async function executeBatchFetch(requests, customHeaders) {
     return allResults;
 }
 
-
 // =======================================================
 // HANDLER UTAMA VERCEL UNTUK FUNDING RATE
 // =======================================================
@@ -76,7 +75,6 @@ export default async function handler(req, res) {
     const { FUTURE_FR_HISTORY_BASE_URL, CUSTOM_HEADERS } = config;
 
     // --- PHASE 1: FETCH DATA FUNDING RATE ---
-    
     const frRequests = [];
     symbols.forEach(symbol => {
         frRequests.push({ 
@@ -84,34 +82,38 @@ export default async function handler(req, res) {
             symbol: symbol 
         });
     });
-
     const frResults = await executeBatchFetch(frRequests, CUSTOM_HEADERS);
     
     // --- PHASE 2: PERHITUNGAN DAN FINALISASI ---
-    
     const finalResultArray = frResults.map(result => {
         const symbol = result.symbol;
         let frChangeRatio = 0; // Default jika gagal
-
+        let finalOutputFR = 0; // 🛠️ DEKLARASI: Variabel yang akan dikembalikan (Kolom G)
+    
         if (!result.data || result.error || result.data.length < 2) {
             // Jika data error atau kurang dari 2 (N dan N-1)
-            return [frChangeRatio]; 
+            return [finalOutputFR];
         }
-
         const frHistory = result.data;
         
-        // Data terbaru (N): Data ke-0 karena API Gate.io mengembalikan data terbaru di indeks 0
+        // Pastikan properti API yang digunakan adalah 'r'
         const latestFR = parseFloat(frHistory[0].r);
-        // Data sebelumnya (N-1): Data di indeks 1
         const prevFR = parseFloat(frHistory[1].r);
-
+    
         // Pastikan tidak ada pembagian dengan nol dan data valid
-       if (!isNaN(latestFR) && !isNaN(prevFR) && prevFR !== 0 && isFinite(latestFR) && isFinite(prevFR)) {
+        if (!isNaN(latestFR) && !isNaN(prevFR) && prevFR !== 0 && isFinite(latestFR) && isFinite(prevFR)) {
             frChangeRatio = (latestFR - prevFR) / prevFR;
         }
-
-        // Output hanya satu kolom: Rasio Perubahan FR
-        return [frChangeRatio]; 
+    
+        // 🛠️ LOGIKA finalOutputFR
+        if (frChangeRatio < 1.5) {
+            finalOutputFR = latestFR;
+        } else {
+            finalOutputFR = 1; // Atau nilai yang Anda inginkan saat rasio tinggi
+        }
+    
+        // Output hanya satu kolom: Nilai final dari logika if/else
+        return [finalOutputFR];
     });
 
     // Kirim Respons
