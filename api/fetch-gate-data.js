@@ -200,7 +200,7 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
              //( (volup > 0.65) && (oiup > 0.965) && (volume_buy_n > 3000) && (volSpike > 2.00) && (lsr_taker_n > 1.1) && (oiSpike > 1.055) ) ||
              //( (volup > 0.30) && (oiup > 1.000) && (volume_buy_n > 1500) && (volSpike > 2.75) && (lsr_taker_n > 1.1) && (oiSpike > 1.100) )
 
-             ( (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 5000) && (volSpike > 2.5) && (lsr_taker_n > 1.5) && (oiSpike > 1.15) )
+             ( (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 5000) && (volSpike > 2.5) && (lsr_taker_n > 1.25) && (oiSpike > 1.05) )
             
         )
 
@@ -209,7 +209,7 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
              //( (atr_n <= 0.015) && (atrp_n <= 1.7) && (atrStabilityScore <= 0.35) && (buyavgrasio > 1.25) ) ||
              //( (atr_n <= 0.050) && (atrp_n <= 1.1) && (atrStabilityScore <= 0.65) && (buyavgrasio > 1.25) )
 
-             ( (atr_n <= 0.050) && (atrp_n <= 1.5) && (atrStabilityScore <= 0.5) && (buyavgrasio > 1.25) )
+             ( (atr_n <= 0.05) && (atrp_n <= 2.5) && (atrStabilityScore <= 0.5) && (buyavgrasio > 1.15) )
             
         );
 
