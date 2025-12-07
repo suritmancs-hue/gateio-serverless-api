@@ -13,7 +13,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Batas Konkurensi dan Jeda untuk menghindari Error 429
 const CONCURRENCY_LIMIT = 10; 
-const DELAY_MS = 500; 
+const DELAY_MS = 300; 
 
 // --- Konfigurasi Konstanta Perhitungan ---
 const STATS_REQUIRED_COMPLETED = 50;
@@ -111,7 +111,7 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
     
     let trueCount = 0;
     const endIndex = volumes.length; 
-    const ITERATION_COUNT = 2;
+    const ITERATION_COUNT = 1;
 
     // --- KONFIGURASI PARAMETER (UBAH DI SINI) ---
     const OFFSET_TO_START = 4; // Offset: Seberapa jauh kita melihat ke belakang (skip candle baru)
@@ -339,7 +339,6 @@ export default async function handler(req, res) {
         const completedStats = result.data.slice(0, result.data.length - 1); 
         // Validasi historis harus setidaknya 5
         if (completedStats.length < STATS_REQUIRED_COMPLETED) {
-            console.warn(`Data stats completed tidak cukup untuk ${symbol}. Diharapkan ${STATS_REQUIRED_COMPLETED}, didapat ${completedStats.length}.`);
             return;
         }
 
@@ -412,7 +411,6 @@ export default async function handler(req, res) {
         // 2. EKSTRAKSI DAN VALIDASI FINAL
         // Validasi minimum: Membutuhkan data sinkron
         if (synchronizedData.length < CANDLE_REQUIRED_COMPLETED) {
-            console.warn(`Sinkronisasi Gagal: Data historis yang sinkron (${synchronizedData.length}) tidak memenuhi syarat minimum (${CANDLE_REQUIRED_COMPLETED}).`);
             return;
         }
         
