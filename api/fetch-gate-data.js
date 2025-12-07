@@ -58,9 +58,9 @@ function convertUnixTimestampToUTC(unixTimestampSeconds) {
  * @param {Array<number>} closes - Array Harga Penutupan (Close).
  * @returns {string} Status "✅" atau "❌".
  */
-function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, closes) {
+function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, closes, opens) {
     // Pastikan panjang minimum terpenuhi
-    if (lsrTakers.length < STATS_REQUIRED_COMPLETED || volumes.length < CANDLE_REQUIRED_COMPLETED) {
+    if (lsrTakers.length < STATS_REQUIRED_COMPLETED || volumes.length < CANDLE_REQUIRED_COMPLETED || opens.length < CANDLE_REQUIRED_COMPLETED) {
         return '❌'; 
     }
 
@@ -191,7 +191,14 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
 
         let buyavgrasio = buyaverage0 / buyaverage1;
 
-        // Tidak mencetak console.log di Vercel Functions untuk hasil akhir
+        const lastClose = closes[currentDataIndex];
+        const lastOpen = opens[currentDataIndex];
+    
+        let isBullishLastCandle = false;
+        if (lastOpen > 0) {
+            isBullishLastCandle = lastClose / lastOpen;        // close candle indeks terakhir / open candle indeks terakhir > 1
+        }
+
         // console.log(`ATRP = ${atrp_n} ATRS = ${atrStabilityScore}`);
 
         // --- Validasi Status FINAL ---
@@ -200,7 +207,7 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
              //( (volup > 0.65) && (oiup > 0.965) && (volume_buy_n > 3000) && (volSpike > 2.00) && (lsr_taker_n > 1.1) && (oiSpike > 1.055) ) ||
              //( (volup > 0.30) && (oiup > 1.000) && (volume_buy_n > 1500) && (volSpike > 2.75) && (lsr_taker_n > 1.1) && (oiSpike > 1.100) )
 
-             ( (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 5000) && (volSpike > 2.5) && (lsr_taker_n > 1.25) && (oiSpike > 1.05) )
+             ( (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 7500) && (volSpike > 2.5) && (lsr_taker_n > 1.25) && (oiSpike > 1.05) && isBullishLastCandle > 1)
             
         )
 
@@ -391,9 +398,10 @@ export default async function handler(req, res) {
                 synchronizedData.push({
                     time: candle.t,
                     price: Number(candle.c),
-                    high: Number(candle.h), // TAMBAHAN: High
-                    low: Number(candle.l),  // TAMBAHAN: Low
-                    close: Number(candle.c), // TAMBAHAN: Close (sama dengan price)
+                    open: Number(candle.o),
+                    high: Number(candle.h),
+                    low: Number(candle.l), 
+                    close: Number(candle.c),
                     volume: Number(candle.sum),
                     lsr_taker: parseFloat(foundStats.lsr_taker),
                     open_interest: parseFloat(foundStats.open_interest_usd || 0)
@@ -441,6 +449,7 @@ export default async function handler(req, res) {
         syncData.highsArray = synchronizedData.map(d => d.high).slice(synchronizedData.length - CANDLE_REQUIRED_COMPLETED);
         syncData.lowsArray = synchronizedData.map(d => d.low).slice(synchronizedData.length - CANDLE_REQUIRED_COMPLETED);
         syncData.closesArray = synchronizedData.map(d => d.close).slice(synchronizedData.length - CANDLE_REQUIRED_COMPLETED);
+        syncData.opensArray = synchronizedData.map(d => d.open).slice(synchronizedData.length - CANDLE_REQUIRED_COMPLETED);
     });
 
     // -----------------------------------------------------------
@@ -463,13 +472,14 @@ export default async function handler(req, res) {
         const lsrTakers = syncData.lsrTakersArray;
         const volumes = syncData.volumesArray;
         const openInterests = syncData.openInterestsArray;
+        const opens = syncData.opensArray;
         const highs = syncData.highsArray;
         const lows = syncData.lowsArray;
         const closes = syncData.closesArray;
         
         // Hanya hitung jika data yang sudah selesai memenuhi syarat minimum
         const statusE = (lsrTakers.length === STATS_REQUIRED_COMPLETED && volumes.length === CANDLE_REQUIRED_COMPLETED)
-            ? calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, closes) // Pass array baru
+            ? calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, closes, opens)
             : '❌';
 
         outputRow.push(statusE); // F: Status
