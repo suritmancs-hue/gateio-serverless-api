@@ -179,14 +179,14 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
 
         // --- Validasi Status FINAL ---
         const isSpikeValid = (
-             (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 7500) && (volSpike > 2.5) && 
+             (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 5000) && (volSpike > 2.5) && 
              (lsr_taker_n > 1.25) && (oiSpike > 1.05) && (isBullishLastCandle > 1)
         );
 
         const isCalmValid = (
              (atr_n <= 0.05) && 
              (atrp_n <= 2.5) && 
-             (atrStabilityScore <= 0.5) && 
+             (atrStabilityScore <= 2.5) && 
              (buyavgrasio > 1.15) &&
              (maxMinPriceRatio <= 1.085) // threshold 8.5% range harga
         );
