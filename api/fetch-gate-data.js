@@ -58,19 +58,35 @@ function convertUnixTimestampToUTC(unixTimestampSeconds) {
  * @param {Array<number>} closes - Array Harga Penutupan (Close).
  * @returns {string} Status "✅" atau "❌".
  */
+/**
+ * Fungsi ini menghitung status "✅" atau "❌".
+ * Menambahkan filter bullish awal untuk efisiensi script.
+ */
 function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, closes, opens) {
-    // Pastikan panjang minimum terpenuhi
+    // 1. Validasi Panjang Minimum
     if (lsrTakers.length < STATS_REQUIRED_COMPLETED || volumes.length < CANDLE_REQUIRED_COMPLETED || opens.length < CANDLE_REQUIRED_COMPLETED) {
         return '❌'; 
     }
 
-    // --- 1. Persiapan Data ATR (Tanpa Offset untuk perhitungan awal) ---
+    // 2. PENGECEKAN AWAL (EFFICIENCY GATE): Bullish Candle Terakhir
+    const lastIdx = closes.length - 1;
+    const currentClose = closes[lastIdx];
+    const currentOpen = opens[lastIdx];
+
+    // Jika candle terakhir tidak bullish (close <= open), langsung return ❌
+    if (!(currentOpen > 0 && (currentClose / currentOpen) > 1)) {
+        return '❌';
+    }
+
+    // --- Lanjut ke perhitungan berat jika lolos seleksi awal ---
+
+    // --- 1. Persiapan Data ATR (Tanpa Offset) ---
     const trArray = [];
     const atrArray = new Array(closes.length).fill(0);
     const ATR_PERIOD = 14;
 
     for (let k = 0; k < closes.length; k++) {
-        if (k < 1) { // Perbaikan fallback index
+        if (k < 1) {
             trArray.push(highs[k] - lows[k]);
         } else {
             const prevClose = closes[k - 1];
@@ -98,7 +114,7 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
     for (let i = 0; i < volumes.length; i++) {
         const vol = volumes[i];
         const lsr = lsrTakers[i];
-        if (lsr <= 0) {volumeBuys.push(0); continue; }
+        if (lsr <= 0) { volumeBuys.push(0); continue; }
         const volume_buy = vol / (1 + (1 / lsr));
         volumeBuys.push(volume_buy);
     }
@@ -122,30 +138,22 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
         const open_interest_n = openInterests[currentDataIndex];
         const open_interest_n1 = openInterests[currentDataIndex - 1];
 
-        // --- A. CEK ATR VALUE (DIHAPUS OFFSET) ---
-        // Menggunakan currentDataIndex langsung agar mencerminkan kondisi candle terakhir
+        // --- A. ATR Value & Stability (Tanpa Offset) ---
         const close_n = closes[currentDataIndex];
         const atr_n = atrArray[currentDataIndex]; 
-        
-        let atrp_n = 0;
-        if (close_n > 0 && atr_n > 0) {
-            atrp_n = (atr_n / close_n) * 100;
-        }
+        let atrp_n = (close_n > 0 && atr_n > 0) ? (atr_n / close_n) * 100 : 0;
 
-        // --- B. CEK ATR STABILITY (DIHAPUS OFFSET) ---
         const sliceEnd = currentDataIndex + 1;
         const sliceStart = sliceEnd - STABILITY_LOOKBACK;
         const atrSlice = atrArray.slice(sliceStart, sliceEnd);
-        
         const maxAtr = Math.max(...atrSlice);
         const minAtr = Math.min(...atrSlice);
-        let atrStabilityScore = (minAtr > 0) ? (maxAtr - minAtr) / minAtr : 0;
+        const atrStabilityScore = (minAtr > 0) ? (maxAtr - minAtr) / minAtr : 0;
 
-        // --- C. SYARAT BARU: MaxMinPrice (Menerapkan OFFSET_TO_START) ---
+        // --- B. MaxMinPrice (Dengan Offset) ---
         const priceSliceEnd = currentDataIndex + 1 - OFFSET_TO_START;
-        const priceSliceStart = priceSliceEnd - 14; // Periode 14
+        const priceSliceStart = priceSliceEnd - 14; 
         let maxMinPriceRatio = 0;
-
         if (priceSliceStart >= 0) {
             const priceSlice = closes.slice(priceSliceStart, priceSliceEnd);
             const maxPrice = Math.max(...priceSlice);
@@ -153,19 +161,17 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
             maxMinPriceRatio = (minPrice > 0) ? maxPrice / minPrice : 0;
         }
 
-        // --- Logika Deteksi Spike ---
+        // --- C. Volume & OI Spike ---
         const volup = (volume_buy_n1 > 0) ? volume_buy_n / volume_buy_n1 : 1;
         const oiup = (open_interest_n1 > 0) ? open_interest_n / open_interest_n1 : 1;
         
         const endIndexSlice = currentDataIndex - OFFSET_TO_START + 1;
         const startIndex = endIndexSlice - LOOKBACK_DEPTH;
         const denominatorSlice = volumeBuys.slice(startIndex, endIndexSlice);
-
         if (startIndex < 0 || denominatorSlice.length !== LOOKBACK_DEPTH) continue; 
 
         const denominator = (denominatorSlice.reduce((acc, vol) => acc + vol, 0)) / LOOKBACK_DEPTH;
         const volSpike = (denominator > 0) ? volume_buy_n / denominator : 1;
-
         const denominatorOI = (openInterests.slice(startIndex, endIndexSlice).reduce((acc, val) => acc + val, 0)) / LOOKBACK_DEPTH;
         const oiSpike = (denominatorOI > 0) ? open_interest_n / denominatorOI : 0;
 
@@ -173,25 +179,11 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
         const buyaverage0 = (volumeBuys.slice(startIndex + 4, endIndexSlice + 4).reduce((acc, val) => acc + val, 0)) / LOOKBACK_DEPTH;
         const buyavgrasio = buyaverage0 / buyaverage1;
 
-        const lastClose = closes[currentDataIndex];
-        const lastOpen = opens[currentDataIndex];
-        const isBullishLastCandle = (lastOpen > 0) ? lastClose / lastOpen : 0;
+        // Syarat Spike & Ketenangan (isBullish sudah dicek di awal function)
+        const isSpikeValid = (volup > 1.5 && oiup > 1.05 && volume_buy_n > 5000 && volSpike > 2.5 && lsr_taker_n > 1.25 && oiSpike > 1.05);
+        const isCalmValid = (atr_n <= 0.05 && atrp_n <= 2.5 && atrStabilityScore <= 2.5 && buyavgrasio > 1.15 && maxMinPriceRatio <= 1.085);
 
-        // --- Validasi Status FINAL ---
-        const isSpikeValid = (
-             (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 5000) && (volSpike > 2.5) && 
-             (lsr_taker_n > 1.25) && (oiSpike > 1.05) && (isBullishLastCandle > 1)
-        );
-
-        const isCalmValid = (
-             (atr_n <= 0.05) && 
-             (atrp_n <= 2.5) && 
-             (atrStabilityScore <= 2.5) && 
-             (buyavgrasio > 1.15) &&
-             (maxMinPriceRatio <= 1.085) // threshold 8.5% range harga
-        );
-
-       if (isSpikeValid && isCalmValid) {
+        if (isSpikeValid && isCalmValid) {
             trueCount++;
         }
     }
