@@ -5,11 +5,10 @@ const fetch = require('node-fetch');
 // Batas Konkurensi dan Jeda untuk menghindari Error 429
 const CONCURRENCY_LIMIT = 10; 
 const DELAY_MS = 500; 
-const HISTORY_LIMIT = 3; // Ambil 3 data untuk memastikan kita punya N dan N-1
+const HISTORY_LIMIT = 3; // Mengambil 3 data terakhir
 
 /**
  * Fungsi pembantu untuk menjalankan batch request dengan rate limiting.
- * (Disalin dari fungsi sebelumnya, karena prinsipnya sama)
  */
 async function executeBatchFetch(requests, customHeaders) {
     let allResults = [];
@@ -25,16 +24,16 @@ async function executeBatchFetch(requests, customHeaders) {
         })
         .then(response => {
             if (!response.ok) {
-                return { symbol: reqItem.symbol, data: null, error: `HTTP Error: ${response.status} - ${response.statusText}` };
+                return { symbol: reqItem.symbol, data: null, error: `HTTP Error: ${response.status}` };
             }
             return response.json().then(data => ({
                 symbol: reqItem.symbol, data: data, error: null
             })).catch(e => ({
-                symbol: reqItem.symbol, data: null, error: `JSON Parse Error: ${e.message}`
+                symbol: reqItem.symbol, data: null, error: `Parse Error`
             }));
         })
         .catch(e => ({
-            symbol: reqItem.symbol, data: null, error: `Fetch Error: ${e.message}`
+            symbol: reqItem.symbol, data: null, error: `Fetch Error`
         }));
         
         fetchPromises.push(promise);
@@ -44,14 +43,10 @@ async function executeBatchFetch(requests, customHeaders) {
                 const batchResults = await Promise.all(fetchPromises);
                 allResults = allResults.concat(batchResults);
             } catch (e) {
-                console.error("Error selama Promise.all batch:", e);
+                console.error("Batch error:", e);
             }
-            
             fetchPromises = [];
-            
-            if (i < requests.length - 1) {
-                await delay(DELAY_MS);
-            }
+            if (i < requests.length - 1) await delay(DELAY_MS);
         }
     }
     return allResults;
@@ -63,18 +58,17 @@ async function executeBatchFetch(requests, customHeaders) {
 export default async function handler(req, res) {
     
     if (req.method !== 'POST' || !req.body) {
-        return res.status(405).send('Hanya metode POST yang diterima dengan body JSON.');
+        return res.status(405).send('Hanya metode POST yang diterima.');
     }
     
     const { symbols, config } = req.body;
     
     if (!symbols || !Array.isArray(symbols) || symbols.length === 0) {
-        return res.status(400).send('Daftar simbol tidak valid atau kosong.');
+        return res.status(400).send('Simbol tidak valid.');
     }
     
     const { FUTURE_FR_HISTORY_BASE_URL, CUSTOM_HEADERS } = config;
 
-    // --- PHASE 1: FETCH DATA FUNDING RATE ---
     const frRequests = [];
     symbols.forEach(symbol => {
         frRequests.push({ 
@@ -82,44 +76,39 @@ export default async function handler(req, res) {
             symbol: symbol 
         });
     });
+
     const frResults = await executeBatchFetch(frRequests, CUSTOM_HEADERS);
     
-    // --- PHASE 2: PERHITUNGAN DAN FINALISASI ---
     const finalResultArray = frResults.map(result => {
-        const symbol = result.symbol;
-        let frChangeRatio = 0; // Default jika gagal
-        let finalOutputFR = 0; // 🛠️ DEKLARASI: Variabel yang akan dikembalikan (Kolom G)
+        let finalOutput = 'x'; // Default dikembalikan sebagai 'x'
     
-        if (!result.data || result.error || result.data.length < 2) {
-            // Jika data error atau kurang dari 2 (N dan N-1)
-            return [finalOutputFR];
+        if (!result.data || result.error || result.data.length < HISTORY_LIMIT) {
+            return [finalOutput];
         }
-        const frHistory = result.data;
+
+        // Ekstraksi nilai FR dari properti 'r'
+        const frValues = result.data.map(item => parseFloat(item.r));
         
-        // Pastikan properti API yang digunakan adalah 'r'
-        const latestFR = parseFloat(frHistory[0].r);
-        const prevFR = parseFloat(frHistory[1].r);
-    
-        // Pastikan tidak ada pembagian dengan nol dan data valid
-        if (!isNaN(latestFR) && !isNaN(prevFR) && prevFR !== 0 && isFinite(latestFR) && isFinite(prevFR)) {
-            frChangeRatio = (latestFR - prevFR) / prevFR;
-        }
-    
-        // 🛠️ LOGIKA finalOutputFR
-        if (frChangeRatio < 1.5) {
-            finalOutputFR = latestFR;
+        // Cek validitas angka
+        if (frValues.some(val => isNaN(val))) return [finalOutput];
+
+        // 🛠️ PERHITUNGAN LOGIKA AND (3 DATA TERAKHIR)
+        const maxFR = Math.max(...frValues);
+        const minFR = Math.min(...frValues);
+        const currentFR = frValues[0]; // Data paling terbaru
+
+        // Syarat: Max < 0.05 DAN Min > -0.1
+        if (maxFR < 0.05 && minFR > -0.1) {
+            finalOutput = currentFR; 
         } else {
-            finalOutputFR = 1; // Atau nilai yang Anda inginkan saat rasio tinggi
+            finalOutput = 'x';
         }
     
-        // Output hanya satu kolom: Nilai final dari logika if/else
-        return [finalOutputFR];
+        return [finalOutput];
     });
 
-    // Kirim Respons
     res.status(200).json({ 
         status: 'Success', 
-        message: 'Data Funding Rate berhasil diambil dan diproses.',
         data: finalResultArray 
     });
 }
