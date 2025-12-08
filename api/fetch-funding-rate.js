@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     const frResults = await executeBatchFetch(frRequests, CUSTOM_HEADERS);
     
     const finalResultArray = frResults.map(result => {
-        let finalOutput = 'x'; // Default dikembalikan sebagai 'x'
+        let finalOutput = '❌'; // Default dikembalikan sebagai '❌'
     
         if (!result.data || result.error || result.data.length < HISTORY_LIMIT) {
             return [finalOutput];
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
         if (maxFR < 0.05 && minFR > -0.1) {
             finalOutput = currentFR; 
         } else {
-            finalOutput = 'x';
+            finalOutput = '❌';
         }
     
         return [finalOutput];
