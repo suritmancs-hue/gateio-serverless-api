@@ -64,37 +64,31 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
         return '❌'; 
     }
 
-    // --- 1. Persiapan Data ATR (RMA Method ala TradingView) ---
+    // --- 1. Persiapan Data ATR (Tanpa Offset untuk perhitungan awal) ---
     const trArray = [];
     const atrArray = new Array(closes.length).fill(0);
     const ATR_PERIOD = 14;
 
-    // Hitung True Range (TR)
     for (let k = 0; k < closes.length; k++) {
-        if (k < 4) {
-            // Jika belum cukup data (candle ke 0, 1, 2, 3), gunakan High - Low standar
-            // Ini mencegah index negatif yang menyebabkan NaN
+        if (k < 1) { // Perbaikan fallback index
             trArray.push(highs[k] - lows[k]);
         } else {
-            // STRATEGI ANDA: Menggunakan closes[k - 4]
-            const prevCloseCustom = closes[k - 4];
+            const prevClose = closes[k - 1];
             const tr = Math.max(
                 highs[k] - lows[k],
-                Math.abs(highs[k] - prevCloseCustom), // Selisih High dengan Close H-4
-                Math.abs(lows[k] - prevCloseCustom)   // Selisih Low dengan Close H-4
+                Math.abs(highs[k] - prevClose),
+                Math.abs(lows[k] - prevClose)
             );
             trArray.push(tr);
         }
     }
 
-    // Hitung ATR Awal (SMA)
     let sumTR = 0;
     for (let k = 0; k < ATR_PERIOD; k++) {
         sumTR += trArray[k];
     }
     atrArray[ATR_PERIOD - 1] = sumTR / ATR_PERIOD;
 
-    // Hitung ATR Lanjutan (RMA / Wilder's Smoothing)
     for (let k = ATR_PERIOD; k < trArray.length; k++) {
         atrArray[k] = ((atrArray[k - 1] * (ATR_PERIOD - 1)) + trArray[k]) / ATR_PERIOD;
     }
@@ -112,60 +106,56 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
     let trueCount = 0;
     const endIndex = volumes.length; 
     const ITERATION_COUNT = 1;
-
-    // --- KONFIGURASI PARAMETER (UBAH DI SINI) ---
-    const OFFSET_TO_START = 4; // Offset: Seberapa jauh kita melihat ke belakang (skip candle baru)
-    const LOOKBACK_DEPTH = 20; // Lookback: Berapa banyak data historis untuk rata-rata volume
-    const STABILITY_LOOKBACK = 20; // Stability: Berapa candle ke belakang untuk cek ATR datar
+    const OFFSET_TO_START = 4; 
+    const LOOKBACK_DEPTH = 20; 
+    const STABILITY_LOOKBACK = 20; 
     
     // --- 3. Iterasi Pengecekan Kondisi ---
     for (let i = 0; i < ITERATION_COUNT; i++) {
-        
         const currentDataIndex = endIndex - 1 - i; 
-        
-        // Validasi Index untuk mundur ke belakang
-        if (currentDataIndex - (STABILITY_LOOKBACK - 1) < 0) continue; 
+        if (currentDataIndex - STABILITY_LOOKBACK < 0) continue; 
 
-        // Ambil data dasar
+        // Data Dasar
         const volume_buy_n = volumeBuys[currentDataIndex];
         const volume_buy_n1 = volumeBuys[currentDataIndex - 1];
         const lsr_taker_n = lsrTakers[currentDataIndex];
         const open_interest_n = openInterests[currentDataIndex];
         const open_interest_n1 = openInterests[currentDataIndex - 1];
 
-        // --- A. CEK ATR VALUE (ATRP RENDAH?) ---
-        const targetIndexForATR = currentDataIndex - OFFSET_TO_START; 
-        const close_n = closes[targetIndexForATR];
-        
-        // Safety check index ATR
-        if (targetIndexForATR < 0) continue;
-        const atr_n = atrArray[targetIndexForATR]; 
+        // --- A. CEK ATR VALUE (DIHAPUS OFFSET) ---
+        // Menggunakan currentDataIndex langsung agar mencerminkan kondisi candle terakhir
+        const close_n = closes[currentDataIndex];
+        const atr_n = atrArray[currentDataIndex]; 
         
         let atrp_n = 0;
         if (close_n > 0 && atr_n > 0) {
             atrp_n = (atr_n / close_n) * 100;
         }
 
-        // --- B. CEK ATR STABILITY (DATAR SELAMA 20 CANDLE?) ---
-        const sliceEnd = currentDataIndex + 1 - OFFSET_TO_START;
+        // --- B. CEK ATR STABILITY (DIHAPUS OFFSET) ---
+        const sliceEnd = currentDataIndex + 1;
         const sliceStart = sliceEnd - STABILITY_LOOKBACK;
-        
-        if (sliceStart < 0) continue;
         const atrSlice = atrArray.slice(sliceStart, sliceEnd);
         
-        // Cari nilai Max dan Min
         const maxAtr = Math.max(...atrSlice);
         const minAtr = Math.min(...atrSlice);
+        let atrStabilityScore = (minAtr > 0) ? (maxAtr - minAtr) / minAtr : 0;
 
-        // Hitung rasio fluktuasi
-        let atrStabilityScore = 0;
-        if (minAtr > 0) {
-            atrStabilityScore = (maxAtr - minAtr) / minAtr;
+        // --- C. SYARAT BARU: MaxMinPrice (Menerapkan OFFSET_TO_START) ---
+        const priceSliceEnd = currentDataIndex + 1 - OFFSET_TO_START;
+        const priceSliceStart = priceSliceEnd - 14; // Periode 14
+        let maxMinPriceRatio = 0;
+
+        if (priceSliceStart >= 0) {
+            const priceSlice = closes.slice(priceSliceStart, priceSliceEnd);
+            const maxPrice = Math.max(...priceSlice);
+            const minPrice = Math.min(...priceSlice);
+            maxMinPriceRatio = (minPrice > 0) ? maxPrice / minPrice : 0;
         }
 
-        // --- Logika Deteksi Spike (Denominator) ---
-        const volup = (volume_buy_n1 > 0) ? volume_buy_n / volume_buy_n1 : volume_buy_n / 1;
-        const oiup = (open_interest_n1 > 0) ? open_interest_n / open_interest_n1 : open_interest_n / 1;
+        // --- Logika Deteksi Spike ---
+        const volup = (volume_buy_n1 > 0) ? volume_buy_n / volume_buy_n1 : 1;
+        const oiup = (open_interest_n1 > 0) ? open_interest_n / open_interest_n1 : 1;
         
         const endIndexSlice = currentDataIndex - OFFSET_TO_START + 1;
         const startIndex = endIndexSlice - LOOKBACK_DEPTH;
@@ -173,51 +163,32 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
 
         if (startIndex < 0 || denominatorSlice.length !== LOOKBACK_DEPTH) continue; 
 
-        const sumDenominator = denominatorSlice.reduce((acc, vol) => acc + vol, 0);
-        const denominator = sumDenominator / LOOKBACK_DEPTH;
-        let volSpike = (denominator > 0) ? volume_buy_n / denominator : volume_buy_n / 1;
+        const denominator = (denominatorSlice.reduce((acc, vol) => acc + vol, 0)) / LOOKBACK_DEPTH;
+        const volSpike = (denominator > 0) ? volume_buy_n / denominator : 1;
 
-        const denominatorSliceOI = openInterests.slice(startIndex, endIndexSlice);
-        const sumDenominatorOI = denominatorSliceOI.reduce((acc, val) => acc + val, 0);
-        const denominatorOI = sumDenominatorOI / LOOKBACK_DEPTH;
-        let oiSpike = (denominatorOI > 0) ? open_interest_n / denominatorOI : 0;
+        const denominatorOI = (openInterests.slice(startIndex, endIndexSlice).reduce((acc, val) => acc + val, 0)) / LOOKBACK_DEPTH;
+        const oiSpike = (denominatorOI > 0) ? open_interest_n / denominatorOI : 0;
 
-        const buySlice1 = volumeBuys.slice(startIndex + 4, endIndexSlice + 3);
-        const totalBuyVolume1 = buySlice1.reduce((acc, val) => acc + val, 0);
-        let buyaverage1 = totalBuyVolume1 / (LOOKBACK_DEPTH - 1);
-        const buySlice0 = volumeBuys.slice(startIndex + 4, endIndexSlice + 4);
-        const totalBuyVolume0 = buySlice0.reduce((acc, val) => acc + val, 0);
-        let buyaverage0 = totalBuyVolume0 / (LOOKBACK_DEPTH);
-
-        let buyavgrasio = buyaverage0 / buyaverage1;
+        const buyaverage1 = (volumeBuys.slice(startIndex + 4, endIndexSlice + 3).reduce((acc, val) => acc + val, 0)) / (LOOKBACK_DEPTH - 1);
+        const buyaverage0 = (volumeBuys.slice(startIndex + 4, endIndexSlice + 4).reduce((acc, val) => acc + val, 0)) / LOOKBACK_DEPTH;
+        const buyavgrasio = buyaverage0 / buyaverage1;
 
         const lastClose = closes[currentDataIndex];
         const lastOpen = opens[currentDataIndex];
-    
-        let isBullishLastCandle = false;
-        if (lastOpen > 0) {
-            isBullishLastCandle = lastClose / lastOpen;        // close candle indeks terakhir / open candle indeks terakhir > 1
-        }
-
-        // console.log(`ATRP = ${atrp_n} ATRS = ${atrStabilityScore}`);
+        const isBullishLastCandle = (lastOpen > 0) ? lastClose / lastOpen : 0;
 
         // --- Validasi Status FINAL ---
         const isSpikeValid = (
-             //( (volup > 0.75) && (oiup > 0.980) && (volume_buy_n > 3000) && (volSpike > 1.50) && (lsr_taker_n > 1.1) && (oiSpike > 1.015) ) ||
-             //( (volup > 0.65) && (oiup > 0.965) && (volume_buy_n > 3000) && (volSpike > 2.00) && (lsr_taker_n > 1.1) && (oiSpike > 1.055) ) ||
-             //( (volup > 0.30) && (oiup > 1.000) && (volume_buy_n > 1500) && (volSpike > 2.75) && (lsr_taker_n > 1.1) && (oiSpike > 1.100) )
-
-             ( (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 7500) && (volSpike > 2.5) && (lsr_taker_n > 1.25) && (oiSpike > 1.05) && isBullishLastCandle > 1)
-            
-        )
+             (volup > 1.5) && (oiup > 1.05) && (volume_buy_n > 7500) && (volSpike > 2.5) && 
+             (lsr_taker_n > 1.25) && (oiSpike > 1.05) && (isBullishLastCandle > 1)
+        );
 
         const isCalmValid = (
-             //( (atr_n <= 0.001) && (atrp_n <= 2.5) && (atrStabilityScore <= 0.10) && (buyavgrasio > 1.25) ) || 
-             //( (atr_n <= 0.015) && (atrp_n <= 1.7) && (atrStabilityScore <= 0.35) && (buyavgrasio > 1.25) ) ||
-             //( (atr_n <= 0.050) && (atrp_n <= 1.1) && (atrStabilityScore <= 0.65) && (buyavgrasio > 1.25) )
-
-             ( (atr_n <= 0.05) && (atrp_n <= 2.5) && (atrStabilityScore <= 0.5) && (buyavgrasio > 1.15) )
-            
+             (atr_n <= 0.05) && 
+             (atrp_n <= 2.5) && 
+             (atrStabilityScore <= 0.5) && 
+             (buyavgrasio > 1.15) &&
+             (maxMinPriceRatio <= 1.085) // threshold 8.5% range harga
         );
 
        if (isSpikeValid && isCalmValid) {
