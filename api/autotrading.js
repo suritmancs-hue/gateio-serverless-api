@@ -19,27 +19,30 @@ const API_PATH = '/api/v4/futures/usdt/orders';
 // FUNCTION: Create Gate.io Signature
 // --------------------------------------
 function createGateioSignature(method, path, bodyString, timestamp, secret) {
-    const secretBuf = Buffer.from(String(secret).trim());
+    const cleanedSecret = String(secret).trim();
+    const secretBuf = Buffer.from(cleanedSecret, "utf8");
 
+    // Hash body
     const bodyHash = crypto
-      .createHash('sha512')
-      .update(bodyString, 'utf8')
-      .digest('hex');
+        .createHash("sha512")
+        .update(Buffer.from(bodyString, "utf8"))
+        .digest("hex");
 
     console.log("[DEBUG bodyHash length]", bodyHash.length);
 
-    // Path HARUS ditambah tanda tanya (?)
+    // Gate.io BUTUH tanda tanya meskipun tanpa query
     const signPath = `${path}?`;
 
+    // Build sign string EXACT
     const signString =
         `${timestamp}\n${method}\n${signPath}\n\n${bodyHash}`;
 
-    console.log('[DEBUG signString]\n' + signString);
+    console.log("[DEBUG signString]\n" + signString);
 
     return crypto
-        .createHmac('sha512', secretBuf)
-        .update(signString)
-        .digest('hex');
+        .createHmac("sha512", secretBuf)
+        .update(Buffer.from(signString, "utf8"))
+        .digest("hex");
 }
 
 
