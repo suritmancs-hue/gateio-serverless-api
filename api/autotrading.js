@@ -10,36 +10,32 @@ const API_HOST = "https://api.gateio.ws";
 const API_PREFIX = "/api/v4";
 
 // ------------------------------------------------------------
-// Signature (identik Python SDK)
+// Signature — WAJIB: body adalah RAW STRING (x-www-form-urlencoded)
 // ------------------------------------------------------------
-function genSign(method, url, queryStr, payloadStr, timestamp) {
-  const m = crypto.createHash("sha512");
-  m.update(payloadStr || "");
-  const bodyHash = m.digest("hex");
+function genSign(method, url, query, bodyRaw, timestamp) {
+  const hash = crypto.createHash("sha512").update(bodyRaw || "").digest("hex");
 
-  const s =
-    method +
-    "\n" +
-    url +
-    "\n" +
-    (queryStr || "") +
-    "\n" +
-    bodyHash +
-    "\n" +
+  const signStr =
+    method + "\n" +
+    url + "\n" +
+    (query || "") + "\n" +
+    hash + "\n" +
     timestamp;
 
-  return crypto.createHmac("sha512", API_SECRET).update(s).digest("hex");
+  return crypto
+    .createHmac("sha512", API_SECRET)
+    .update(signStr)
+    .digest("hex");
 }
 
 // ------------------------------------------------------------
-// Gate.io Universal Request
+// Universal Gate.io Caller — FUTURES VERSION (x-www-form-urlencoded ONLY)
 // ------------------------------------------------------------
-async function gateio(method, path, query = "", payloadObj = null) {
+async function gateio(method, path, query = "", bodyRaw = "") {
   const url = API_PREFIX + path;
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const payload = payloadObj ? JSON.stringify(payloadObj) : "";
+  const ts = String(Math.floor(Date.now() / 1000));
 
-  const signature = genSign(method, url, query, payload, timestamp);
+  const sign = genSign(method, url, query, bodyRaw, ts);
 
   const fullURL = API_HOST + url + (query ? "?" + query : "");
 
@@ -47,52 +43,55 @@ async function gateio(method, path, query = "", payloadObj = null) {
     method,
     headers: {
       Accept: "application/json",
-      "Content-Type": "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
       KEY: API_KEY,
-      Timestamp: timestamp,
-      SIGN: signature,
+      Timestamp: ts,
+      SIGN: sign,
     },
-    body: payload || undefined,
+    body: bodyRaw || undefined,
   });
 
   const raw = await resp.text();
   let json;
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    json = { raw };
-  }
+  try { json = JSON.parse(raw); }
+  catch { json = { raw }; }
 
   console.log("[DEBUG Gate.io Response]", json);
+
   return { ok: resp.ok, json };
 }
 
-// ------------------------------------------------------------------
-// SET LEVERAGE — CORRECT BODY FORMAT
-// ------------------------------------------------------------------
+// ------------------------------------------------------------
+// SET LEVERAGE — Format Resmi (tidak pakai body!)
+// Dikemas dalam QUERY STRING
+// ------------------------------------------------------------
 async function setLeverage(contract, lev) {
   return await gateio(
     "POST",
     `/futures/usdt/positions/${contract}/leverage`,
-    `leverage=${lev}`,
-    ""   // <== body harus kosong
+    `leverage=${lev}`,   // query
+    ""                   // body kosong
   );
 }
 
 // ------------------------------------------------------------
-// PERPETUAL FUTURES — SUBMIT MARKET ORDER (IOC)
+// SUBMIT FUTURES ORDER — MUST USE x-www-form-urlencoded
 // ------------------------------------------------------------
-async function submitOrder(contract, side, size) {
+async function submitOrderFutures(contract, side, size) {
+  const body =
+    `contract=${contract}` +
+    `&size=${size}` +
+    `&price=0` +
+    `&side=${side}` +
+    `&time_in_force=gtc` +
+    `&iceberg=0` +
+    `&text=api`;
+
   return await gateio(
     "POST",
     "/futures/usdt/orders",
     "",
-    {
-      contract,
-      size: side === "long" ? Number(size) : -Math.abs(Number(size)),
-      price: "0",
-      tif: "ioc", // MARKET
-    }
+    body
   );
 }
 
@@ -121,7 +120,7 @@ module.exports = async (req, res) => {
     }
 
     console.log("=== SUBMIT ORDER ===");
-    const orderRes = await submitOrder(contract, side, size);
+    const orderRes = await submitOrderFutures(contract, side, size);
 
     if (!orderRes.ok) {
       return res.status(500).json({
