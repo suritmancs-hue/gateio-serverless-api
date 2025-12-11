@@ -44,9 +44,20 @@ async function getRawBody(req) {
 // ------------------------------------------------------------
 function createGateioSignature(method, path, bodyString, timestamp, secret) {
   const cleanedSecret = String(secret || '').trim();
-  const secretBuf = Buffer.from(cleanedSecret, 'utf8');
 
-  // Body hash
+  // Detect if secret is hex
+  let secretBuf;
+  if (/^[0-9a-fA-F]+$/.test(cleanedSecret) && cleanedSecret.length % 2 === 0) {
+    secretBuf = Buffer.from(cleanedSecret, 'hex');
+    console.log("[DEBUG] Secret interpreted as HEX (raw bytes)");
+  } else {
+    secretBuf = Buffer.from(cleanedSecret, 'utf8');
+    console.log("[DEBUG] Secret interpreted as UTF-8");
+  }
+
+  console.log("[DEBUG secretBuf length (bytes)]", secretBuf.length);
+  console.log("[DEBUG secretBuf HEX]", secretBuf.toString('hex'));
+
   const bodyHash = crypto
     .createHash('sha512')
     .update(Buffer.from(bodyString, 'utf8'))
@@ -55,9 +66,7 @@ function createGateioSignature(method, path, bodyString, timestamp, secret) {
   console.log('[DEBUG bodyHash length]', bodyHash.length);
 
   const signPath = `${path}?`;
-
-  const signString =
-    `${timestamp}\n${method}\n${signPath}\n\n${bodyHash}`;
+  const signString = `${timestamp}\n${method}\n${signPath}\n\n${bodyHash}`;
 
   console.log('[DEBUG signString]\n' + signString);
 
@@ -68,6 +77,7 @@ function createGateioSignature(method, path, bodyString, timestamp, secret) {
 
   return signature;
 }
+
 
 // ------------------------------------------------------------
 // Vercel Handler
