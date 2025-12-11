@@ -16,7 +16,13 @@ function createGateioSignature(method, path, bodyString, timestamp, secret) {
     const secretBuf = Buffer.from(secret.trim());
 
     // 2. Body hash
-    const bodyHash = crypto.createHash('sha512').update(bodyString).digest('hex');
+    const encoder = new TextEncoder();
+    const bodyBytes = encoder.encode(bodyString);
+    
+    const bodyHash = crypto
+      .createHash('sha512')
+      .update(bodyBytes)
+      .digest('hex');
 
     console.log("[DEBUG bodyHash length]", bodyHash.length);
 
