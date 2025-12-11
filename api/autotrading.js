@@ -67,15 +67,17 @@ async function gateio(method, path, query = "", payloadObj = null) {
   return { ok: resp.ok, json };
 }
 
-// ------------------------------------------------------------
-// PERPETUAL FUTURES — SET LEVERAGE
-// ------------------------------------------------------------
+// ------------------------------------------------------------------
+// SET LEVERAGE — CORRECT BODY FORMAT
+// ------------------------------------------------------------------
 async function setLeverage(contract, lev) {
   return await gateio(
     "POST",
     `/futures/usdt/positions/${contract}/leverage`,
     "",
-    { leverage: Number(lev) }   // <= format benar untuk perpetual
+    {
+      leverage: Number(lev)   // HARUS BODY, bukan query
+    }
   );
 }
 
