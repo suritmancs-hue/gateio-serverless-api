@@ -21,6 +21,8 @@ function createGateioSignature(method, path, bodyString, timestamp, secret) {
     // **3. Buat Signature String (5 elemen)**
     // Format: TIMESTAMP\nMETHOD\nPATH\n\nBODY_HASH
     const signString = `${timestamp}\n${method}\n${path}\n\n${bodyHash}`;
+
+    console.log(`[DEBUG] Sign String: \n${signString}`);
     
     // **4. Hitung Signature (HMAC SHA512)**
     // Kita berikan string tanda tangan mentah (signString)
@@ -95,6 +97,7 @@ module.exports = async (req, res) => {
                 error: 'Gate.io API Error', 
                 details: responseJson 
             });
+            console.log(`[ERROR] Gate.io API Response: ${responseText}`);
         }
     } catch (error) {
         return res.status(500).json({ success: false, error: 'Internal Server Error', details: error.message });
