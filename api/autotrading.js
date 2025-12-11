@@ -1,9 +1,8 @@
 // gateio-vercel-autotrade.js
-// Vercel Serverless Function for Gate.io Futures Orders
-// FINAL VERSION – ready for deployment
+// Vercel Serverless Function for Gate.io futures orders
 
 const crypto = require('crypto');
-const fetch = require('node-fetch'); // or 'undici' if Node 18+
+const fetch = require('node-fetch');
 
 // Env vars
 const API_KEY = process.env.GATEIO_KEY;
@@ -13,7 +12,7 @@ const API_HOST = 'https://api.gateio.ws';
 const API_PATH = '/api/v4/futures/usdt/orders';
 
 // ------------------------------------------------------------
-// Helper: robust raw body reader (supports Vercel rawBody)
+// Helper: Read raw body robustly
 // ------------------------------------------------------------
 async function getRawBody(req) {
   if (req.rawBody) {
@@ -28,23 +27,26 @@ async function getRawBody(req) {
     } catch (_) {}
   }
 
-  if (typeof req.body === 'string') return req.body;
+  if (typeof req.body === 'string') {
+    return req.body;
+  }
 
   return await new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (c) => chunks.push(c));
+    req.on('data', chunk => chunks.push(chunk));
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
+    req.on('error', err => reject(err));
   });
 }
 
 // ------------------------------------------------------------
-// Signature Generator (HMAC SHA-512)
+// Gate.io Signature Creator
 // ------------------------------------------------------------
 function createGateioSignature(method, path, bodyString, timestamp, secret) {
   const cleanedSecret = String(secret || '').trim();
   const secretBuf = Buffer.from(cleanedSecret, 'utf8');
 
+  // Body hash
   const bodyHash = crypto
     .createHash('sha512')
     .update(Buffer.from(bodyString, 'utf8'))
@@ -52,14 +54,10 @@ function createGateioSignature(method, path, bodyString, timestamp, secret) {
 
   console.log('[DEBUG bodyHash length]', bodyHash.length);
 
-  // append trailing ?
   const signPath = `${path}?`;
 
   const signString =
-    `${timestamp}\n` +
-    `${method}\n` +
-    `${signPath}\n\n` +
-    bodyHash;
+    `${timestamp}\n${method}\n${signPath}\n\n${bodyHash}`;
 
   console.log('[DEBUG signString]\n' + signString);
 
@@ -72,66 +70,63 @@ function createGateioSignature(method, path, bodyString, timestamp, secret) {
 }
 
 // ------------------------------------------------------------
-// Main Handler
+// Vercel Handler
 // ------------------------------------------------------------
 module.exports = async (req, res) => {
   try {
-    // Validate keys
     if (!API_KEY || !API_SECRET) {
-      return res.status(500).json({
-        error: 'API keys missing in environment variables.',
-      });
+      return res.status(500).json({ error: 'API keys missing.' });
     }
 
-    // Debug Secret Info (safe — HEX only)
-    const SECRET = String(API_SECRET || '').trim();
-    console.log('SECRET LENGTH =', SECRET.length);
-    console.log('SECRET HEX =', Buffer.from(SECRET, 'utf8').toString('hex'));
+    // Debug secret
+    try {
+      const SECRET = String(API_SECRET || '');
+      console.log('SECRET LENGTH =', SECRET.length);
+      console.log('SECRET HEX =', Buffer.from(SECRET, 'utf8').toString('hex'));
+    } catch (e) {
+      console.log('[WARN] Failed to log secret:', e.message);
+    }
 
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method Not Allowed. Use POST.' });
     }
 
-    // Read raw body
+    // RAW BODY
     const rawBody = await getRawBody(req);
-
     let payload;
     try {
       payload = rawBody ? JSON.parse(rawBody) : {};
     } catch (e) {
       return res.status(400).json({
         error: 'Invalid JSON payload',
-        rawBody,
         details: e.message,
+        rawBody
       });
     }
 
-    // Extract required fields
     const { contract, side, size, leverage } = payload;
+
     if (!contract || !side || !size || !leverage) {
       return res.status(400).json({
-        error: 'Missing required trade parameters: contract, side, size, leverage',
+        error: 'Missing required parameters: contract, side, size, leverage'
       });
     }
 
     const method = 'POST';
     const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    // Order payload (Gate.io standard)
     const orderData = {
       contract: String(contract),
-      size:
-        side === 'long'
-          ? String(size)
-          : String(-Math.abs(Number(size))),
-      price: '0', // market order
-      leverage: String(leverage),
+      size: side === 'long'
+        ? String(size)
+        : String(-Math.abs(Number(size))),
+      price: '0',
+      leverage: String(leverage)
     };
 
     const bodyString = JSON.stringify(orderData);
     console.log('[DEBUG bodyString]', bodyString);
 
-    // Create signature
     const signature = createGateioSignature(
       method,
       API_PATH,
@@ -140,51 +135,50 @@ module.exports = async (req, res) => {
       API_SECRET
     );
 
-    // Make Gate.io request
-    const response = await fetch(API_HOST + API_PATH, {
+    // ------------------------------------------------------------
+    // Request to Gate.io (headers FIXED)
+    // ------------------------------------------------------------
+    const resp = await fetch(API_HOST + API_PATH, {
       method,
-      // --- Send request to Gate.io ---
-      const resp = await fetch(API_HOST + API_PATH, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'KEY': String(API_KEY).trim(),
-          'Timestamp': timestamp, 
-          'SIGN': signature
-        },
-        body: bodyString
-      });
-      body: bodyString,
+      headers: {
+        'Content-Type': 'application/json',
+        'KEY': String(API_KEY).trim(),
+        'Timestamp': timestamp,
+        'SIGN': signature
+      },
+      body: bodyString
     });
 
-    const text = await response.text();
-    let json;
+    const rawResp = await resp.text();
+    let parsedResp;
+
     try {
-      json = JSON.parse(text);
+      parsedResp = JSON.parse(rawResp);
     } catch (_) {
-      json = { raw: text };
+      parsedResp = { raw: rawResp };
     }
 
-    console.log('[DEBUG Gate.io response]', json);
+    console.log('[DEBUG Gate.io response]', parsedResp);
 
-    if (!response.ok) {
+    if (!resp.ok) {
       return res.status(502).json({
         success: false,
         error: 'Gate.io API Error',
-        details: json,
+        details: parsedResp
       });
     }
 
     return res.status(200).json({
       success: true,
-      gateioResponse: json,
+      gateioResponse: parsedResp
     });
+
   } catch (err) {
     console.error('[ERROR] Unexpected:', err);
     return res.status(500).json({
       success: false,
       error: 'Internal Server Error',
-      details: err?.message,
+      details: err.message
     });
   }
 };
