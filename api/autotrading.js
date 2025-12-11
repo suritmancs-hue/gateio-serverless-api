@@ -59,9 +59,9 @@ module.exports = async (req, res) => {
     // Siapkan Data Order Gate.io
     const orderData = {
         contract: contract,
-        size: (side === 'long' ? size : -size), // Sign: Positif untuk long, negatif untuk short
+        size: (side === 'long' ? String(size) : String(-size)),
         price: '0', // Market Order
-        leverage: leverage.toString(),
+        leverage: String(leverage),
     };
     
     const bodyString = JSON.stringify(orderData);
