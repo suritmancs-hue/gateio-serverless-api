@@ -11,23 +11,29 @@ const API_PATH = '/api/v4/futures/usdt/orders';
 
 // Fungsi untuk membuat signature (HMAC SHA-512)
 function createGateioSignature(method, path, bodyString, timestamp, secret) {
-    
-    // **1. Membersihkan dan Memverifikasi Kunci Rahasia**
-    const cleanSecret = Buffer.from(String(secret).trim(), 'utf8'); // Memastikan Secret adalah Buffer dari string bersih
-    
-    // **2. Hitung Body Hash (SHA512)**
-    const bodyHash = crypto.createHash('sha512').update(String(bodyString), 'utf8').digest('hex');
-    
-    // **3. Buat Signature String (5 elemen)**
-    // Format: TIMESTAMP\nMETHOD\nPATH\n\nBODY_HASH
-    const signString = `${timestamp}\n${method}\n${path}\n\n${bodyHash}`;
 
-    console.log(`[DEBUG] Sign String: \n${signString}`);
-    
-    // **4. Hitung Signature (HMAC SHA512)**
-    // Kita berikan string tanda tangan mentah (signString)
-    return crypto.createHmac('sha512', cleanSecret).update(signString, 'utf8').digest('hex');
+    // 1. Clean secret
+    const secretBuf = Buffer.from(secret.trim());
+
+    // 2. Body hash
+    const bodyHash = crypto
+        .createHash('sha512')
+        .update(bodyString)
+        .digest('hex');
+
+    // 3. Signature string (HARUS EXACT)
+    const signString =
+        `${timestamp}\n${method}\n${path}\n\n${bodyHash}`;
+
+    console.log('[DEBUG signString]\n' + signString);
+
+    // 4. HMAC SHA512
+    return crypto
+        .createHmac('sha512', secretBuf)
+        .update(signString)
+        .digest('hex');
 }
+
 
 // ...
 
@@ -77,9 +83,9 @@ module.exports = async (req, res) => {
             method: method,
             headers: {
                 'Content-Type': 'application/json',
-                'KEY': GATEIO_KEY,
-                'SIGN': signature,
-                'Timestamp': timestamp,
+                'key': KEY,
+                'sign': signature,
+                'timestamp': timestamp,
             },
             body: bodyString,
         });
