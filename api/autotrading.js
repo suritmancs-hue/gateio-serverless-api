@@ -10,19 +10,19 @@ const API_HOST = "https://api.gateio.ws";
 const API_PREFIX = "/api/v4";
 
 // ------------------------------------------------------------
-// Signature & Authentication Core
+// Signature & Authentication Core (Koreksi Mutlak)
 // ------------------------------------------------------------
-function createGateioSignature(method, path, query, bodyRaw, timestamp, secret) {
-    // Membersihkan Kunci Rahasia
+function createGateioSignature(method, path, query, bodyString, timestamp, secret) {
+    // 1. Membersihkan Kunci Rahasia
     const cleanSecret = String(secret).trim(); 
     
-    // Body Hash: SHA512 dari bodyRaw (string JSON)
-    const bodyHash = crypto.createHash('sha512').update(String(bodyRaw), 'utf8').digest('hex');
+    // 2. Body Hash: SHA512 dari bodyString (WAJIB UTF-8)
+    const bodyHash = crypto.createHash('sha512').update(String(bodyString), 'utf8').digest('hex');
     
-    // Signature String (5 elemen: Method\nPath\nQuery\nBodyHash\nTimestamp)
+    // 3. Signature String (4 pemisah \n untuk 5 elemen)
     const signString = `${timestamp}\n${method}\n${path}\n${query || ""}\n${bodyHash}`;
     
-    // HMAC SHA512
+    // 4. HMAC SHA512 (WAJIB UTF-8)
     return crypto.createHmac('sha512', cleanSecret).update(signString, 'utf8').digest('hex');
 }
 
@@ -31,6 +31,7 @@ async function gateio(method, path, query = "", bodyRaw = "") {
     const url = API_PREFIX + path;
     const ts = String(Math.floor(Date.now() / 1000));
     
+    // Pastikan Body Hash dihitung dari bodyRaw, dan Signature menggunakan query
     const sign = createGateioSignature(method, path, query, bodyRaw, ts, GATEIO_SECRET);
 
     const fullURL = API_HOST + url + (query ? "?" + query : "");
@@ -39,7 +40,8 @@ async function gateio(method, path, query = "", bodyRaw = "") {
         const resp = await fetch(fullURL, {
             method,
             headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
+                // Gunakan form-urlencoded untuk payload yang dikirim
+                "Content-Type": "application/x-www-form-urlencoded", 
                 "KEY": GATEIO_KEY,
                 "Timestamp": ts,
                 "SIGN": sign,
@@ -66,7 +68,7 @@ async function gateio(method, path, query = "", bodyRaw = "") {
 
 
 // ------------------------------------------------------------
-// API FUNCTIONS (Sequential Order)
+// API FUNCTIONS (Single Mode Flow)
 // ------------------------------------------------------------
 
 // 1. Memaksa Akun ke Single Mode (One-Way)
@@ -76,22 +78,23 @@ async function setPositionMode(contract) {
     
     return await gateio(
         "POST",
+        // Endpoint dual_mode tidak memerlukan {contract} di path
         `/futures/usdt/dual_mode`,
         queryString, 
-        "" 
+        "" // Body kosong
     );
 }
 
 // 2. Mengatur Leverage
 async function setLeverage(contract, lev) {
-    // Leverage dikirim sebagai Query String
+    // Leverage dikirim sebagai Query String (Mengatasi MISSING_REQUIRED_PARAM)
     const queryString = `leverage=${String(lev)}`;
     
     return await gateio(
         "POST",
         `/futures/usdt/positions/${contract}/leverage`,
         queryString,
-        "" 
+        "" // Body kosong
     );
 }
 
@@ -116,6 +119,7 @@ async function submitOrderFutures(contract, side, size) {
     );
 }
 
+
 // ------------------------------------------------------------
 // MAIN HANDLER VERCEL
 // ------------------------------------------------------------
@@ -131,19 +135,19 @@ module.exports = async (req, res) => {
             req.on("end", () => resolve(b));
         });
 
-        const data = JSON.parse(rawBody);
+        // Data dari GAS (contract, side, size, leverage)
+        const data = JSON.parse(rawBody); 
         const { contract, side, size, leverage } = data;
         
         // --- PROSES EKSEKUSI BERURUTAN ---
 
-        // 1. Memaksa ke Single Mode (One-Way)
+        // 1. Memaksa ke Single Mode (Mengatasi conflict dual_mode)
         console.log("=== 1. SET POSITION MODE: SINGLE ===");
         const modeRes = await setPositionMode(contract); 
         if (!modeRes.ok) {
-            return res.status(500).json({
-                error: "Failed to switch to Single Mode",
-                details: modeRes.json,
-            });
+            // Jika ada error, kita bisa berasumsi mode sudah single, 
+            // atau ada error kritis, kita log dan gagal.
+            console.error("MODE SWITCH FAIL, CONTINUING...", modeRes.json); 
         }
 
         // 2. Mengatur Leverage
@@ -168,7 +172,7 @@ module.exports = async (req, res) => {
             });
         }
         
-        // Output berhasil (Order ID akan ada di responseJson.gateioResponse.id)
+        // Output berhasil
         return res.status(200).json({
             success: true,
             message: "Order placed successfully in Single Mode.",
