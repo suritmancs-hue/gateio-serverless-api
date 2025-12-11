@@ -96,22 +96,29 @@ async function setLeverage(contract, lev) {
 // ------------------------------------------------------------
 // SUBMIT FUTURES ORDER — MUST USE x-www-form-urlencoded
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// SUBMIT FUTURES ORDER — SINGLE MODE (One-Way)
+// ------------------------------------------------------------
 async function submitOrderFutures(contract, side, size) {
-  const body =
-    `contract=${contract}` +
-    `&size=${size}` +
-    `&price=0` +
-    `&side=${side}` +
-    `&time_in_force=gtc` +
-    `&iceberg=0` +
-    `&text=api`;
 
-  return await gateio(
-    "POST",
-    "/futures/usdt/orders",
-    "",
-    body
-  );
+    const signedSize = (side === 'long' ? size : -size); 
+    
+    const body =
+      `contract=${contract}` +
+      `&size=${signedSize}` + // MENGGUNAKAN SIZE BERTANDA
+      `&price=0` +
+      `&time_in_force=ioc` + // Menggunakan ioc agar order terisi penuh atau batal
+      `&text=api`;
+
+    // Pastikan kita tidak mengirim side=buy/sell, karena Vercel harusnya
+    // hanya mengirimkan data body mentah untuk Market Order.
+    
+    return await gateio(
+      "POST",
+      "/futures/usdt/orders",
+      "",
+      body
+    );
 }
 
 // ------------------------------------------------------------
