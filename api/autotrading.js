@@ -9,18 +9,21 @@ const GATEIO_SECRET = process.env.GATEIO_SECRET;
 const API_HOST = 'https://api.gateio.ws';
 const API_PATH = '/api/v4/futures/usdt/orders';
 
-// Fungsi untuk membuat signature (HMAC SHA-512) dengan koreksi encoding
+// File: api/autotrading.js (Perhatikan perubahan pada baris 3)
+// Fungsi untuk membuat signature (HMAC SHA-512)
 function createGateioSignature(method, path, bodyString, timestamp, secret) {
+    
+    // **Koreksi Kunci Rahasia (Mengatasi Whitespace/Newline)**
+    const cleanSecret = secret.trim(); 
+    
     // 1. Hitung Body Hash (SHA512) - MENGGUNAKAN 'utf8'
     const bodyHash = crypto.createHash('sha512').update(bodyString, 'utf8').digest('hex');
     
     // 2. Buat Signature String (5 elemen dipisahkan \n)
-    // Format: TIMESTAMP\nMETHOD\nPATH\nQUERY_STRING\nBODY_HASH
-    // Query String kosong, menggunakan \n\n
     const signString = `${timestamp}\n${method}\n${path}\n\n${bodyHash}`;
     
-    // 3. Hitung Signature (HMAC SHA512) - MENGGUNAKAN 'utf8'
-    return crypto.createHmac('sha512', secret).update(signString, 'utf8').digest('hex');
+    // 3. Hitung Signature (HMAC SHA512) - Menggunakan cleanSecret dan 'utf8'
+    return crypto.createHmac('sha512', cleanSecret).update(signString, 'utf8').digest('hex');
 }
 
 // Fungsi Utama Handler Vercel
