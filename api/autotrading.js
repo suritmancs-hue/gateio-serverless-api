@@ -16,10 +16,9 @@ function createGateioSignature(method, path, bodyString, timestamp, secret) {
     const secretBuf = Buffer.from(secret.trim());
 
     // 2. Body hash
-    const bodyHash = crypto
-        .createHash('sha512')
-        .update(bodyString)
-        .digest('hex');
+    const bodyHash = crypto.createHash('sha512').update(bodyString).digest('hex');
+
+    console.log("[DEBUG bodyHash length]", bodyHash.length);
 
     // 3. Signature string (HARUS EXACT)
     const signString =
@@ -74,6 +73,8 @@ module.exports = async (req, res) => {
     };
     
     const bodyString = JSON.stringify(orderData);
+
+    console.log("[DEBUG bodyString]" + bodyString);
 
     // Buat Signature
     const signature = createGateioSignature(method, API_PATH, bodyString, timestamp, SECRET);
