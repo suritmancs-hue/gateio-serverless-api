@@ -98,7 +98,7 @@ export default async function handler(req, res) {
         const currentFR = frValues[0]; // Data paling terbaru
 
         // Syarat: Max < 0.05 DAN Min > -0.1
-        if (maxFR < 0.05 && minFR > -0.1) {
+        if (maxFR < 0.0005 && minFR > -0.001) {
             finalOutput = currentFR; 
         } else {
             finalOutput = '❌';
