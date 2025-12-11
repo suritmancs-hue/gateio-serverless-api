@@ -137,7 +137,8 @@ module.exports = async (req, res) => {
     console.log("=== SETTING LEVERAGE ===");
 
     const leverageBody = JSON.stringify({
-      leverage: String(leverage)
+      lever_rate: Number(leverage),   // nilai leverage
+      cross_leverage: false           // default isolated
     });
 
     const lev = await gateioRequest(
