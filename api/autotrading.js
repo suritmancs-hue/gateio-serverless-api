@@ -76,19 +76,20 @@ async function gateio(method, path, query = "", bodyRaw = "") {
 
 
 // ------------------------------------------------------------
-// SET LEVERAGE — HARUS DIKIRIM SEBAGAI BODY FORM-URLENCODED
+// SET LEVERAGE — HARUS DIKIRIM SEBAGAI QUERY STRING
 // ------------------------------------------------------------
 async function setLeverage(contract, lev) {
-  // Leverage dikirim sebagai body raw (x-www-form-urlencoded)
-  const bodyRaw = `leverage=${lev}`; // Format key=value
+  // Kunci API V4 mengharuskan parameter ini berada di Query String.
+  // Pastikan leverage dikonversi menjadi String
+  const queryString = `leverage=${String(lev)}`;
 
-  return await gateio(
-    "POST",
-    // Catatan: Tidak ada Query String, Path API harus berupa /positions/{contract}/leverage
-    `/futures/usdt/positions/${contract}/leverage`,
-    "", // Query String kosong
-    bodyRaw // Kirim bodyRaw
-  );
+  // bodyRaw dikosongkan karena parameter berada di Query String
+  return await gateio(
+    "POST",
+    `/futures/usdt/positions/${contract}/leverage`,
+    queryString, // <--- DIKIRIM DI SINI
+    "" // BODY RAW DIKOSONGKAN
+  );
 }
 
 
