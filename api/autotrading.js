@@ -13,21 +13,32 @@ const API_PATH = '/api/v4/futures/usdt/orders';
 // Fungsi untuk membuat signature (HMAC SHA-512)
 function createGateioSignature(method, path, bodyString, timestamp, secret) {
     
-    // **Koreksi Kunci Rahasia (Mengatasi Whitespace/Newline)**
-    const cleanSecret = secret.trim(); 
+    // **Pastikan semua input adalah string murni**
+    const cleanSecret = String(secret).trim(); 
     
-    // 1. Hitung Body Hash (SHA512) - MENGGUNAKAN 'utf8'
-    const bodyHash = crypto.createHash('sha512').update(bodyString, 'utf8').digest('hex');
+    // 1. Hitung Body Hash (SHA512)
+    // Update harus menggunakan string body, dan hasilnya hex
+    const bodyHash = crypto.createHash('sha512').update(String(bodyString), 'utf8').digest('hex');
     
-    // 2. Buat Signature String (5 elemen dipisahkan \n)
+    // 2. Buat Signature String (5 elemen)
     const signString = `${timestamp}\n${method}\n${path}\n\n${bodyHash}`;
     
-    // 3. Hitung Signature (HMAC SHA512) - Menggunakan cleanSecret dan 'utf8'
+    // 3. Hitung Signature (HMAC SHA512)
+    // Gunakan cleanSecret dan signString sebagai string.
     return crypto.createHmac('sha512', cleanSecret).update(signString, 'utf8').digest('hex');
 }
 
 // Fungsi Utama Handler Vercel
 module.exports = async (req, res) => {
+    // 0. Validasi Kunci dan Pembersihan Ekstra
+    // Gunakan String() untuk menjamin tipe data yang diambil dari Env Vars
+    const KEY = GATEIO_KEY ? String(GATEIO_KEY).trim() : null;
+    const SECRET = GATEIO_SECRET ? String(GATEIO_SECRET).trim() : null; 
+
+    if (!KEY || !SECRET) {
+        return res.status(500).json({ error: 'API keys not configured or are empty after trimming.' });
+    }
+    
     if (!GATEIO_KEY || !GATEIO_SECRET) {
         return res.status(500).json({ error: 'API keys not configured in Vercel environment variables.' });
     }
@@ -56,8 +67,7 @@ module.exports = async (req, res) => {
     const bodyString = JSON.stringify(orderData);
 
     // Buat Signature
-    const signature = createGateioSignature(method, API_PATH, bodyString, timestamp, GATEIO_SECRET);
-
+    const signature = createGateioSignature(method, API_PATH, bodyString, timestamp, SECRET);
     // Kirim Permintaan ke Gate.io
     try {
         const response = await fetch(API_HOST + API_PATH, {
