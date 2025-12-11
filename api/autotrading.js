@@ -21,21 +21,21 @@ const API_PATH = '/api/v4/futures/usdt/orders';
 function createGateioSignature(method, path, bodyString, timestamp, secret) {
     const secretBuf = Buffer.from(String(secret).trim());
 
-    // Body hash (sha512 hexdigest)
     const bodyHash = crypto
-        .createHash('sha512')
-        .update(bodyString, 'utf8')
-        .digest('hex');
+      .createHash('sha512')
+      .update(bodyString, 'utf8')
+      .digest('hex');
 
     console.log("[DEBUG bodyHash length]", bodyHash.length);
 
-    // Harus EXACT sesuai docs: 
-    // timestamp\nmethod\nrequestPath\n\nbodyHash
-    const signString = `${timestamp}\n${method}\n${path}\n\n${bodyHash}`;
+    // Path HARUS ditambah tanda tanya (?)
+    const signPath = `${path}?`;
+
+    const signString =
+        `${timestamp}\n${method}\n${signPath}\n\n${bodyHash}`;
 
     console.log('[DEBUG signString]\n' + signString);
 
-    // HMAC SHA512
     return crypto
         .createHmac('sha512', secretBuf)
         .update(signString)
