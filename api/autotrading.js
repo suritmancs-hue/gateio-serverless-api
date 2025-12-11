@@ -76,7 +76,8 @@ async function setLeverage(contract, lev) {
     `/futures/usdt/positions/${contract}/leverage`,
     "",
     {
-      leverage: Number(lev)   // HARUS BODY, bukan query
+      leverage: Number(lev),            // leverage isolated
+      cross_leverage_limit: 0           // WAJIB ADA
     }
   );
 }
