@@ -1,4 +1,4 @@
-// gateio-autotrade.js — FINAL FIXED VERSION (MATCHES PYTHON SDK)
+// gateio-autotrade.js — DELIVERY FUTURES COMPATIBLE
 
 const crypto = require("crypto");
 const fetch = require("node-fetch");
@@ -10,7 +10,7 @@ const API_HOST = "https://api.gateio.ws";
 const API_PREFIX = "/api/v4";
 
 // ------------------------------------------------------------------
-// SIGN (exact same as official python implementation)
+// SIGN EXACTLY LIKE GATE.IO PYTHON DOCS
 // ------------------------------------------------------------------
 function genSign(method, url, queryStr, payloadStr, timestamp) {
   const m = crypto.createHash("sha512");
@@ -31,8 +31,6 @@ function genSign(method, url, queryStr, payloadStr, timestamp) {
   return crypto.createHmac("sha512", API_SECRET).update(s).digest("hex");
 }
 
-// ------------------------------------------------------------------
-// Gate.io Request
 // ------------------------------------------------------------------
 async function gateio(method, path, query = "", payloadObj = null) {
   const url = API_PREFIX + path;
@@ -65,29 +63,28 @@ async function gateio(method, path, query = "", payloadObj = null) {
   }
 
   console.log("[DEBUG Gate.io Response]", json);
-
   return { ok: resp.ok, json };
 }
 
 // ------------------------------------------------------------------
-// SET LEVERAGE — CORRECT FORMAT
+// SET LEVERAGE — DELIVERY ENDPOINT
 // ------------------------------------------------------------------
 async function setLeverage(contract, lev) {
   return await gateio(
     "POST",
-    `/futures/usdt/positions/${contract}/leverage`,
-    `leverage=${lev}`, // required by Gate.io
+    `/delivery/usdt/positions/${contract}/leverage`,
+    `leverage=${lev}`,
     null
   );
 }
 
 // ------------------------------------------------------------------
-// SUBMIT ORDER
+// SUBMIT ORDER — DELIVERY ORDER FORMAT
 // ------------------------------------------------------------------
 async function submitOrder(contract, side, size) {
   return await gateio(
     "POST",
-    "/futures/usdt/orders",
+    `/delivery/orders`,
     "",
     {
       contract,
