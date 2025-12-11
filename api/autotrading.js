@@ -66,11 +66,13 @@ async function gateio(method, path, query = "", bodyRaw = "") {
 // Dikemas dalam QUERY STRING
 // ------------------------------------------------------------
 async function setLeverage(contract, lev) {
+  const bodyRaw = `leverage=${lev}`;
+
   return await gateio(
     "POST",
     `/futures/usdt/positions/${contract}/leverage`,
-    `leverage=${lev}`,   // query
-    ""                   // body kosong
+    "",
+    bodyRaw
   );
 }
 
