@@ -1,38 +1,41 @@
-// Menggunakan pustaka crypto bawaan Node.js untuk hashing aman
-const crypto = require('crypto');
-const fetch = require('node-fetch'); // Ganti dengan 'undici' jika Anda menggunakan Node.js versi 18+
+// ==============================
+// Gate.io Futures Order Proxy
+// Vercel Serverless Function
+// ==============================
 
-// Kunci API diambil dari Environment Variables Vercel
-const GATEIO_KEY = process.env.GATEIO_KEY;
-const GATEIO_SECRET = process.env.GATEIO_SECRET;
+// Library
+const crypto = require('crypto');
+const fetch = require('node-fetch'); // Jika Node 18+, bisa pakai fetch built-in
+
+// Environment variables dari Vercel
+const API_KEY = process.env.GATEIO_KEY;
+const API_SECRET = process.env.GATEIO_SECRET;
 
 const API_HOST = 'https://api.gateio.ws';
 const API_PATH = '/api/v4/futures/usdt/orders';
 
-// Fungsi untuk membuat signature (HMAC SHA-512)
+
+// --------------------------------------
+// FUNCTION: Create Gate.io Signature
+// --------------------------------------
 function createGateioSignature(method, path, bodyString, timestamp, secret) {
+    const secretBuf = Buffer.from(String(secret).trim());
 
-    // 1. Clean secret
-    const secretBuf = Buffer.from(secret.trim());
-
-    // 2. Body hash
-    const encoder = new TextEncoder();
-    const bodyBytes = encoder.encode(bodyString);
-    
+    // Body hash (sha512 hexdigest)
     const bodyHash = crypto
-      .createHash('sha512')
-      .update(bodyBytes)
-      .digest('hex');
+        .createHash('sha512')
+        .update(bodyString, 'utf8')
+        .digest('hex');
 
     console.log("[DEBUG bodyHash length]", bodyHash.length);
 
-    // 3. Signature string (HARUS EXACT)
-    const signString =
-        `${timestamp}\n${method}\n${path}\n\n${bodyHash}`;
+    // Harus EXACT sesuai docs: 
+    // timestamp\nmethod\nrequestPath\n\nbodyHash
+    const signString = `${timestamp}\n${method}\n${path}\n\n${bodyHash}`;
 
     console.log('[DEBUG signString]\n' + signString);
 
-    // 4. HMAC SHA512
+    // HMAC SHA512
     return crypto
         .createHmac('sha512', secretBuf)
         .update(signString)
@@ -40,79 +43,100 @@ function createGateioSignature(method, path, bodyString, timestamp, secret) {
 }
 
 
-// ...
-
-// Fungsi Utama Handler Vercel
+// --------------------------------------
+// MAIN HANDLER
+// --------------------------------------
 module.exports = async (req, res) => {
-    // 0. Validasi Kunci dan Pembersihan Ekstra
-    // Gunakan String() untuk menjamin tipe data yang diambil dari Env Vars
-    const KEY = GATEIO_KEY ? String(GATEIO_KEY).trim() : null;
-    const SECRET = GATEIO_SECRET ? String(GATEIO_SECRET).trim() : null; 
+    // Validate API Keys
+    if (!API_KEY || !API_SECRET) {
+        return res.status(500).json({
+            error: 'Gate.io API keys missing from environment variables.'
+        });
+    }
 
-    if (!KEY || !SECRET) {
-        return res.status(500).json({ error: 'API keys not configured or are empty after trimming.' });
-    }
-    
-    if (!GATEIO_KEY || !GATEIO_SECRET) {
-        return res.status(500).json({ error: 'API keys not configured in Vercel environment variables.' });
-    }
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed. Use POST.' });
     }
 
-    // Ambil data yang dikirim dari Apps Script
+    // Extract order data
     const { contract, side, size, leverage } = req.body;
 
     if (!contract || !side || !size || !leverage) {
-        return res.status(400).json({ error: 'Missing required trade parameters in payload.' });
+        return res.status(400).json({
+            error: 'Missing required trade parameters: contract, side, size, leverage'
+        });
     }
 
     const method = 'POST';
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    
-    // Siapkan Data Order Gate.io
+
+    // Format order
     const orderData = {
         contract: contract,
-        size: (side === 'long' ? String(size) : String(-size)),
-        price: '0', // Market Order
-        leverage: String(leverage),
+        size: side === 'long' ? String(size) : String(-size),
+        price: "0",
+        leverage: String(leverage)
     };
-    
+
     const bodyString = JSON.stringify(orderData);
 
-    console.log("[DEBUG bodyString]" + bodyString);
+    console.log("[DEBUG bodyString] " + bodyString);
 
-    // Buat Signature
-    const signature = createGateioSignature(method, API_PATH, bodyString, timestamp, SECRET);
-    // Kirim Permintaan ke Gate.io
+    // Generate signature
+    const signature = createGateioSignature(
+        method,
+        API_PATH,
+        bodyString,
+        timestamp,
+        API_SECRET
+    );
+
+    // --------------------------------------
+    // SEND REQUEST TO GATE.IO
+    // --------------------------------------
     try {
         const response = await fetch(API_HOST + API_PATH, {
             method: method,
             headers: {
                 'Content-Type': 'application/json',
-                'key': KEY,
+                'key': API_KEY.trim(),
                 'sign': signature,
-                'timestamp': timestamp,
+                'timestamp': timestamp
             },
-            body: bodyString,
+            body: bodyString
         });
 
-        const responseText = await response.text();
-        const responseJson = JSON.parse(responseText);
+        const raw = await response.text();
+        let parsed = null;
 
-        if (response.ok) {
-            // Berhasil
-            return res.status(200).json({ success: true, gateioResponse: responseJson });
-        } else {
-            // Gagal di Gate.io (misalnya: insuficient funds)
-            return res.status(502).json({ 
-                success: false, 
-                error: 'Gate.io API Error', 
-                details: responseJson 
-            });
-            console.log(`[ERROR] Gate.io API Response: ${responseText}`);
+        try {
+            parsed = JSON.parse(raw);
+        } catch (err) {
+            console.log("[ERROR] JSON parse failed, raw response:", raw);
+            parsed = { raw };
         }
+
+        console.log("[DEBUG Gate.io response]", parsed);
+
+        if (!response.ok) {
+            return res.status(502).json({
+                success: false,
+                error: 'Gate.io API Error',
+                details: parsed
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            gateioResponse: parsed
+        });
+
     } catch (error) {
-        return res.status(500).json({ success: false, error: 'Internal Server Error', details: error.message });
+        console.error("[ERROR] Internal server error", error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error',
+            details: error.message
+        });
     }
 };
