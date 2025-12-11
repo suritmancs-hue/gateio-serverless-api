@@ -35,7 +35,20 @@ async function gateio(method, path, query = "", bodyRaw = "") {
   const url = API_PREFIX + path;
   const ts = String(Math.floor(Date.now() / 1000));
 
-  const sign = genSign(method, url, query, bodyRaw, ts);
+  // WAJIB — bodyHash dihitung dari bodyRaw apa adanya
+  const hash = crypto.createHash("sha512").update(bodyRaw).digest("hex");
+
+  const signStr =
+    method + "\n" +
+    url + "\n" +
+    (query || "") + "\n" +
+    hash + "\n" +
+    ts;
+
+  const sign = crypto
+    .createHmac("sha512", API_SECRET)
+    .update(signStr)
+    .digest("hex");
 
   const fullURL = API_HOST + url + (query ? "?" + query : "");
 
@@ -48,7 +61,7 @@ async function gateio(method, path, query = "", bodyRaw = "") {
       Timestamp: ts,
       SIGN: sign,
     },
-    body: bodyRaw || undefined,
+    body: bodyRaw.length > 0 ? bodyRaw : undefined,
   });
 
   const raw = await resp.text();
@@ -60,6 +73,7 @@ async function gateio(method, path, query = "", bodyRaw = "") {
 
   return { ok: resp.ok, json };
 }
+
 
 // ------------------------------------------------------------
 // SET LEVERAGE — Format Resmi (tidak pakai body!)
@@ -75,6 +89,7 @@ async function setLeverage(contract, lev) {
     bodyRaw
   );
 }
+
 
 // ------------------------------------------------------------
 // SUBMIT FUTURES ORDER — MUST USE x-www-form-urlencoded
