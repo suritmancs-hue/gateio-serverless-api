@@ -1,4 +1,4 @@
-// gateio-autotrade.js — DELIVERY FUTURES COMPATIBLE
+// gateio-autotrade.js — PERPETUAL FUTURES ONLY VERSION
 
 const crypto = require("crypto");
 const fetch = require("node-fetch");
@@ -9,9 +9,9 @@ const API_SECRET = process.env.GATEIO_SECRET;
 const API_HOST = "https://api.gateio.ws";
 const API_PREFIX = "/api/v4";
 
-// ------------------------------------------------------------------
-// SIGN EXACTLY LIKE GATE.IO PYTHON DOCS
-// ------------------------------------------------------------------
+// ------------------------------------------------------------
+// Signature (identik Python SDK)
+// ------------------------------------------------------------
 function genSign(method, url, queryStr, payloadStr, timestamp) {
   const m = crypto.createHash("sha512");
   m.update(payloadStr || "");
@@ -31,11 +31,12 @@ function genSign(method, url, queryStr, payloadStr, timestamp) {
   return crypto.createHmac("sha512", API_SECRET).update(s).digest("hex");
 }
 
-// ------------------------------------------------------------------
+// ------------------------------------------------------------
+// Gate.io Universal Request
+// ------------------------------------------------------------
 async function gateio(method, path, query = "", payloadObj = null) {
   const url = API_PREFIX + path;
   const timestamp = String(Math.floor(Date.now() / 1000));
-
   const payload = payloadObj ? JSON.stringify(payloadObj) : "";
 
   const signature = genSign(method, url, query, payload, timestamp);
@@ -66,38 +67,38 @@ async function gateio(method, path, query = "", payloadObj = null) {
   return { ok: resp.ok, json };
 }
 
-// ------------------------------------------------------------------
-// SET LEVERAGE — DELIVERY ENDPOINT
-// ------------------------------------------------------------------
+// ------------------------------------------------------------
+// PERPETUAL FUTURES — SET LEVERAGE
+// ------------------------------------------------------------
 async function setLeverage(contract, lev) {
   return await gateio(
     "POST",
-    `/delivery/usdt/positions/${contract}/leverage`,
-    `leverage=${lev}`,
-    null
+    `/futures/usdt/positions/${contract}/leverage`,
+    "",
+    { leverage: Number(lev) }   // <= format benar untuk perpetual
   );
 }
 
-// ------------------------------------------------------------------
-// SUBMIT ORDER — DELIVERY ORDER FORMAT
-// ------------------------------------------------------------------
+// ------------------------------------------------------------
+// PERPETUAL FUTURES — SUBMIT MARKET ORDER (IOC)
+// ------------------------------------------------------------
 async function submitOrder(contract, side, size) {
   return await gateio(
     "POST",
-    `/delivery/orders`,
+    "/futures/usdt/orders",
     "",
     {
       contract,
       size: side === "long" ? Number(size) : -Math.abs(Number(size)),
       price: "0",
-      tif: "ioc",
+      tif: "ioc", // MARKET
     }
   );
 }
 
-// ------------------------------------------------------------------
-// HANDLER
-// ------------------------------------------------------------------
+// ------------------------------------------------------------
+// MAIN HANDLER VERCEL
+// ------------------------------------------------------------
 module.exports = async (req, res) => {
   try {
     const raw = await new Promise((resolve) => {
