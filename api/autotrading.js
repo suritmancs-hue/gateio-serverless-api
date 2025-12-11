@@ -143,12 +143,17 @@ module.exports = async (req, res) => {
     // Make Gate.io request
     const response = await fetch(API_HOST + API_PATH, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        key: String(API_KEY).trim(),
-        sign: signature,
-        timestamp,
-      },
+      // --- Send request to Gate.io ---
+      const resp = await fetch(API_HOST + API_PATH, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'KEY': String(API_KEY).trim(),
+          'Timestamp': timestamp, 
+          'SIGN': signature
+        },
+        body: bodyString
+      });
       body: bodyString,
     });
 
