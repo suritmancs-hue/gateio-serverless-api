@@ -74,11 +74,8 @@ async function setLeverage(contract, lev) {
   return await gateio(
     "POST",
     `/futures/usdt/positions/${contract}/leverage`,
-    "",
-    {
-      leverage: Number(lev),            // leverage isolated
-      cross_leverage_limit: 0           // WAJIB ADA
-    }
+    `leverage=${lev}`,
+    ""   // <== body harus kosong
   );
 }
 
