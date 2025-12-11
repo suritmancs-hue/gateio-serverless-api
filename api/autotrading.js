@@ -1,5 +1,5 @@
 // gateio-vercel-autotrade.js
-// Fully Auto-Leverage + Order Executor
+// Fully Auto-Leverage + Auto Order Executor
 
 const crypto = require('crypto');
 const fetch = require('node-fetch');
@@ -12,9 +12,9 @@ const API_PREFIX = "/api/v4";
 const ORDER_PATH = "/futures/usdt/orders";
 const LEVERAGE_PATH = "/futures/usdt/positions"; // + /{contract}/leverage
 
-// --------------------------------------------------------------------
+// ===================================================================
 // RAW BODY READER
-// --------------------------------------------------------------------
+// ===================================================================
 async function getRawBody(req) {
   if (req.rawBody) {
     return typeof req.rawBody === "string"
@@ -26,9 +26,8 @@ async function getRawBody(req) {
       return JSON.stringify(req.body);
     } catch (_) {}
   }
-  if (typeof req.body === "string") {
-    return req.body;
-  }
+  if (typeof req.body === "string") return req.body;
+
   return await new Promise((resolve, reject) => {
     const chunks = [];
     req.on("data", (chunk) => chunks.push(chunk));
@@ -37,9 +36,9 @@ async function getRawBody(req) {
   });
 }
 
-// --------------------------------------------------------------------
-// SIGNATURE (Identical to Gate.io Python example)
-// --------------------------------------------------------------------
+// ===================================================================
+// SIGNATURE — EXACT SAME AS GATE.IO PYTHON EXAMPLE
+// ===================================================================
 function gateSign(method, url, query, payload, timestamp, secret) {
   const bodyHash = crypto
     .createHash("sha512")
@@ -57,17 +56,15 @@ function gateSign(method, url, query, payload, timestamp, secret) {
     "\n" +
     timestamp;
 
-  const signature = crypto
+  return crypto
     .createHmac("sha512", secret)
     .update(signString)
     .digest("hex");
-
-  return signature;
 }
 
-// --------------------------------------------------------------------
+// ===================================================================
 // SEND SIGNED REQUEST
-// --------------------------------------------------------------------
+// ===================================================================
 async function gateioRequest(method, path, payload = "") {
   const url = API_PREFIX + path;
   const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -84,7 +81,7 @@ async function gateioRequest(method, path, payload = "") {
   const resp = await fetch(API_HOST + url, {
     method,
     headers: {
-      "Accept": "application/json",
+      Accept: "application/json",
       "Content-Type": "application/json",
       KEY: API_KEY,
       Timestamp: timestamp,
@@ -102,49 +99,50 @@ async function gateioRequest(method, path, payload = "") {
   }
 
   console.log("[DEBUG Gate.io Response]", json);
+
   return { ok: resp.ok, json };
 }
 
-// --------------------------------------------------------------------
+// ===================================================================
 // MAIN HANDLER
-// --------------------------------------------------------------------
+// ===================================================================
 module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Use POST." });
     }
 
-    // Read Payload
+    // Read raw body
     const rawBody = await getRawBody(req);
     let body;
     try {
       body = JSON.parse(rawBody);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON payload" });
     }
 
     const { contract, side, size, leverage } = body;
 
     if (!contract || !side || !size || !leverage) {
       return res.status(400).json({
-        error: "Missing required fields: contract, side, size, leverage",
+        error: "Missing required: contract, side, size, leverage",
       });
     }
 
-    // ------------------------------------------------------------
-    // STEP 1: Set Leverage automatically
-    // ------------------------------------------------------------
+    // ----------------------------------------------------------
+    // STEP 1 — SET LEVERAGE
+    // ----------------------------------------------------------
     console.log("=== SETTING LEVERAGE ===");
 
-    const leverageBody = JSON.stringify({
-      lever_rate: Number(leverage),   // nilai leverage
-      cross_leverage: false           // default isolated
+    const leveragePayload = JSON.stringify({
+      leverage: Number(leverage), // FIELD BENAR
+      cross_leverage: false
     });
 
     const lev = await gateioRequest(
       "POST",
       `${LEVERAGE_PATH}/${contract}/leverage`,
-      leverageBody
+      leveragePayload
     );
 
     if (!lev.ok) {
@@ -155,21 +153,25 @@ module.exports = async (req, res) => {
       });
     }
 
-    // ------------------------------------------------------------
-    // STEP 2: Submit Order
-    // ------------------------------------------------------------
+    // ----------------------------------------------------------
+    // STEP 2 — SUBMIT ORDER
+    // ----------------------------------------------------------
     console.log("=== SUBMIT ORDER ===");
 
     const orderData = {
       contract,
       size: side === "long" ? Number(size) : -Math.abs(Number(size)),
       price: "0",
-      tif: "ioc",
+      tif: "ioc", // market IOC
     };
 
     const orderPayload = JSON.stringify(orderData);
 
-    const order = await gateioRequest("POST", ORDER_PATH, orderPayload);
+    const order = await gateioRequest(
+      "POST",
+      ORDER_PATH,
+      orderPayload
+    );
 
     if (!order.ok) {
       return res.status(502).json({
