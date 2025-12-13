@@ -12,7 +12,7 @@ const fetch = require('node-fetch');
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Batas Konkurensi dan Jeda untuk menghindari Error 429
-const CONCURRENCY_LIMIT = 30; 
+const CONCURRENCY_LIMIT = 20; 
 const DELAY_MS = 1000;
 
 // --- Konfigurasi Konstanta Perhitungan ---
