@@ -141,14 +141,14 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
         // --- A. ATR Value & Stability (Tanpa Offset) ---
         const close_n = closes[currentDataIndex];
         const atr_n = atrArray[currentDataIndex]; 
-        let atrp_n = (close_n > 0 && atr_n > 0) ? (atr_n / close_n) * 100 : 0;
+        //let atrp_n = (close_n > 0 && atr_n > 0) ? (atr_n / close_n) * 100 : 0;
 
         const sliceEnd = currentDataIndex + 1;
         const sliceStart = sliceEnd - STABILITY_LOOKBACK;
-        const atrSlice = atrArray.slice(sliceStart, sliceEnd);
-        const maxAtr = Math.max(...atrSlice);
-        const minAtr = Math.min(...atrSlice);
-        const atrStabilityScore = (minAtr > 0) ? (maxAtr - minAtr) / minAtr : 0;
+        //const atrSlice = atrArray.slice(sliceStart, sliceEnd);
+        //const maxAtr = Math.max(...atrSlice);
+        //const minAtr = Math.min(...atrSlice);
+        //const atrStabilityScore = (minAtr > 0) ? (maxAtr - minAtr) / minAtr : 0;
 
         // --- B. MaxMinPrice (Dengan Offset) ---
         const priceSliceEnd = currentDataIndex + 1 - OFFSET_TO_START;
@@ -181,7 +181,7 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
 
         // Syarat Spike & Ketenangan (isBullish sudah dicek di awal function)
         const isSpikeValid = (volup > 1.5 && oiup > 1.05 && volume_buy_n > 5000 && volSpike > 2.5 && lsr_taker_n > 1.25 && oiSpike > 1.05);
-        const isCalmValid = (atr_n <= 0.05 && atrp_n <= 2.5 && atrStabilityScore <= 2.5 && buyavgrasio > 1.15 && maxMinPriceRatio <= 1.085);
+        const isCalmValid = (atr_n <= 0.05 && buyavgrasio > 1.15 && maxMinPriceRatio <= 1.085);
 
         if (isSpikeValid && isCalmValid) {
             trueCount++;
