@@ -12,18 +12,18 @@ const fetch = require('node-fetch');
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Batas Konkurensi dan Jeda untuk menghindari Error 429
-const CONCURRENCY_LIMIT = 10; 
-const DELAY_MS = 350; 
+const CONCURRENCY_LIMIT = 150; 
+const DELAY_MS = 1000;
 
 // --- Konfigurasi Konstanta Perhitungan ---
 const STATS_REQUIRED_COMPLETED = 50;
 const STATS_LIMIT = STATS_REQUIRED_COMPLETED + 145;
 
 // Batas minimum yang dibutuhkan untuk denominator Volume yang sukses.
-const CANDLE_REQUIRED_COMPLETED = 50; 
+const CANDLE_REQUIRED_COMPLETED = 50;
 
 // Kita asumsikan interval '5m' = 300 detik (untuk perhitungan waktu mundur)
-const INTERVAL_SECONDS = 300; 
+const INTERVAL_SECONDS = 300;
 // ------------------------------------------
 
 // --- Fungsi Konversi Timestamp ke UTC ---
@@ -152,7 +152,7 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
 
         // --- B. MaxMinPrice (Dengan Offset) ---
         const priceSliceEnd = currentDataIndex + 1 - OFFSET_TO_START;
-        const priceSliceStart = priceSliceEnd - 14; 
+        const priceSliceStart = priceSliceEnd - 20;
         let maxMinPriceRatio = 0;
         if (priceSliceStart >= 0) {
             const priceSlice = closes.slice(priceSliceStart, priceSliceEnd);
@@ -179,16 +179,16 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
         const buyaverage0 = (volumeBuys.slice(startIndex + 4, endIndexSlice + 4).reduce((acc, val) => acc + val, 0)) / LOOKBACK_DEPTH;
         const buyavgrasio = buyaverage0 / buyaverage1;
 
-        console.log(`volSpike : ${volSpike}`);
-        console.log(`oiSpike : ${oiSpike}`);
+        //console.log(`volSpike : ${volSpike}`);
+        //console.log(`oiSpike : ${oiSpike}`);
         
-        console.log(`atr_n : ${atr_n}`);
-        console.log(`buyavgrasio : ${buyavgrasio}`);
-        console.log(`maxMinPriceRatio : ${maxMinPriceRatio}`);
+        //console.log(`atr_n : ${atr_n}`);
+        //console.log(`buyavgrasio : ${buyavgrasio}`);
+        //console.log(`maxMinPriceRatio : ${maxMinPriceRatio}`);
         
         // Syarat Spike & Ketenangan (isBullish sudah dicek di awal function)
         const isSpikeValid = (volup > 1.5 && oiup > 1.05 && volume_buy_n > 5000 && volSpike > 2.5 && lsr_taker_n > 1.25 && oiSpike > 1.05);
-        const isCalmValid = (atr_n <= 0.05 && buyavgrasio > 1.15 && maxMinPriceRatio <= 1.085);
+        const isCalmValid = (atr_n <= 0.0025 && buyavgrasio > 1.15 && maxMinPriceRatio <= 1.075);
 
         if (isSpikeValid && isCalmValid) {
             trueCount++;
