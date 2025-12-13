@@ -179,6 +179,13 @@ function calculateColumnEStatus(lsrTakers, volumes, openInterests, highs, lows, 
         const buyaverage0 = (volumeBuys.slice(startIndex + 4, endIndexSlice + 4).reduce((acc, val) => acc + val, 0)) / LOOKBACK_DEPTH;
         const buyavgrasio = buyaverage0 / buyaverage1;
 
+        console.log(`volSpike : ${volSpike}`);
+        console.log(`oiSpike : ${oiSpike}`);
+        
+        console.log(`atr_n : ${atr_n}`);
+        console.log(`buyavgrasio : ${buyavgrasio}`);
+        console.log(`maxMinPriceRatio : ${maxMinPriceRatio}`);
+        
         // Syarat Spike & Ketenangan (isBullish sudah dicek di awal function)
         const isSpikeValid = (volup > 1.5 && oiup > 1.05 && volume_buy_n > 5000 && volSpike > 2.5 && lsr_taker_n > 1.25 && oiSpike > 1.05);
         const isCalmValid = (atr_n <= 0.05 && buyavgrasio > 1.15 && maxMinPriceRatio <= 1.085);
