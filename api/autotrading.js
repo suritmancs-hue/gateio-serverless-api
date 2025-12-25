@@ -73,19 +73,29 @@ module.exports = async (req, res) => {
     }
 
     try {
-        const { pair, amount, side, type, price } = req.body;
+        const { pair, amount, side, trigger_price, rule, type } = req.body;
 
-        const orderPayload = {
-            currency_pair: pair.toUpperCase().replace("-", "_"),
-            side: side || "buy", // Default buy
-            type: type || "market", // Default market
-            account: "spot",
-            amount: String(amount),
-            price: price || "0", // Jika limit, harga diisi. Jika market, 0.
-            time_in_force: type === "limit" ? "gtc" : "fok" 
-        };
-
-        const result = await gateioRequest("POST", "/spot/orders", "", orderPayload);
+        // Jika ini adalah request untuk TP/SL Trigger
+        if (type === "trigger") {
+            const triggerPayload = {
+                trigger: {
+                    price: String(trigger_price),
+                    rule: rule, // ">=" untuk TP, "<=" untuk SL
+                    expiration: 86400 * 30 // Berlaku 30 hari
+                },
+                put: {
+                    type: "market", // Jual instan di harga pasar saat terpicu
+                    side: side || "sell",
+                    amount: String(amount),
+                    account: "spot"
+                },
+                currency_pair: pair.toUpperCase().replace("-", "_")
+            };
+            
+            // Endpoint khusus untuk Price Condition Order
+            const result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
+            return res.status(200).json({ success: true, data: result.data });
+        }
 
         if (result.ok) {
             console.log("[SUCCESS] Order Berhasil:", result.data);
