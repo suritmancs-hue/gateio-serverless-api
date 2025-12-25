@@ -58,14 +58,15 @@ module.exports = async (req, res) => {
                 put: {
                     type: "market", 
                     side: side || "sell",
-                    amount: String(amount),
-                    account: "spot"
+                    amount: String(amount)
+                    // HAPUS baris 'account: "spot"' di sini jika menyebabkan error
+                    // Pada price_orders, 'account' seringkali tidak diperlukan jika sudah di endpoint spot
                 },
                 currency_pair: pair.toUpperCase().replace("-", "_")
             };
             
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
-        } 
+        }
         // --- SKENARIO 2: MARKET BUY ORDER (EKSEKUSI AWAL) ---
         else {
             const orderPayload = {
