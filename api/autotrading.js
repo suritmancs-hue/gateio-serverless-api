@@ -49,12 +49,15 @@ module.exports = async (req, res) => {
 
         // --- SKENARIO 1: TRIGGER ORDER (TP/SL) ---
         if (type === "trigger") {
-            // Membangun objek secara eksplisit untuk menjamin kebersihan properti
-            const putOrder = {};
-            putOrder.type = "market";           // Tipe Market
-            putOrder.side = side || "sell";     // Sisi Jual/Beli
-            putOrder.amount = String(amount);   // Jumlah koin (String)
-            putOrder.account = "normal";        // Akun normal untuk spot
+            const putOrder = {
+                type: "market",
+                side: side || "sell",
+                amount: String(amount),
+                account: "normal",
+                // Berdasarkan kode Java, field ini didefinisikan sebagai "time_in_force" secara serial
+                // Untuk market order, gunakan "ioc" (Immediate Or Cancel)
+                time_in_force: "ioc" 
+            };
         
             const triggerPayload = {
                 trigger: {
@@ -63,10 +66,10 @@ module.exports = async (req, res) => {
                     expiration: 86400 * 30 
                 },
                 put: putOrder,
-                market: String(pair).toUpperCase().replace("-", "_") // Properti market level atas
+                market: String(pair).toUpperCase().replace("-", "_") 
             };
             
-            console.log("SENDING CLEANEST PAYLOAD:", JSON.stringify(triggerPayload));
+            console.log("SENDING TRIGGER WITH TIF:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
         }
         else {
