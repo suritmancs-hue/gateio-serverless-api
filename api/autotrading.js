@@ -36,11 +36,24 @@ async function gateioRequest(method, path, query = "", bodyObject = null) {
   return { ok: response.ok, status: response.status, data: json };
 }
 
-/* ===================== PRECISION CACHE ===================== */
+/* ===================== IMPROVED PRECISION ===================== */
 const pairCache = new Map();
 
+/**
+ * Mencegah angka kecil berubah menjadi '0' atau scientific notation (1e-7)
+ */
 function toPrecision(value, precision) {
-  return Number(value).toFixed(precision);
+  if (value === undefined || value === null || isNaN(value)) return "0";
+  
+  // Menggunakan toLocaleString untuk memaksa format desimal murni
+  const num = Number(value);
+  const formatted = num.toLocaleString('fullwide', {
+    useGrouping: false,
+    maximumFractionDigits: precision
+  });
+  
+  // Bersihkan trailing zeros yang tidak perlu agar tidak memicu 'invalid argument'
+  return String(parseFloat(formatted));
 }
 
 async function getPairInfo(pair) {
@@ -62,21 +75,26 @@ module.exports = async (req, res) => {
   if (!GATEIO_KEY || !GATEIO_SECRET) return res.status(500).json({ error: "API Keys missing." });
 
   try {
-    const { pair, amount, side, trigger_price, rule, type } = req.body;
+    const { pair, amount, side, trigger_price, rule, type, trail_value } = req.body;
     const marketPair = String(pair).toUpperCase().replace("-", "_");
 
-    // 🔑 ambil precision pair
+    // 🔑 Ambil info resmi dari Gate.io
     const pairInfo = await getPairInfo(marketPair);
     const pricePrecision = pairInfo.price_precision;
     const amountPrecision = pairInfo.amount_precision;
 
     let result;
 
-    /* ===== TRIGGER ORDER ===== */
+    /* ===== TRIGGER ORDER (TP/SL) ===== */
     if (type === "trigger") {
+      const formattedPrice = toPrecision(trigger_price, pricePrecision);
+      
+      // Validasi agar tidak mengirim harga '0'
+      if (formattedPrice === "0") throw new Error(`Trigger price resolved to 0 for ${pair}`);
+
       const triggerPayload = {
         trigger: {
-          price: toPrecision(trigger_price, pricePrecision),
+          price: formattedPrice,
           rule: String(rule),
           expiration: 86400 * 30
         },
@@ -84,14 +102,37 @@ module.exports = async (req, res) => {
           type: "market",
           side: side || "sell",
           amount: toPrecision(amount, amountPrecision),
-          account: "normal",
-          time_in_force: "ioc"
+          account: "normal" // Tanpa time_in_force untuk market trigger
         },
         market: marketPair
       };
 
-      console.log("SENDING TRIGGER ORDER:", triggerPayload);
+      console.log("SENDING TRIGGER ORDER:", JSON.stringify(triggerPayload));
       result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
+
+    } 
+    /* ===== TRAILING STOP ===== */
+    else if (type === "trailing") {
+      const formattedPrice = toPrecision(trigger_price, pricePrecision);
+      
+      const trailingPayload = {
+        trigger: {
+          price: formattedPrice,
+          rule: ">=",
+          expiration: 86400 * 30,
+          trail_value: String(trail_value || "0.1") // Default 10%
+        },
+        put: {
+          type: "market",
+          side: "sell",
+          amount: toPrecision(amount, amountPrecision),
+          account: "normal"
+        },
+        market: marketPair
+      };
+
+      console.log("SENDING TRAILING STOP:", JSON.stringify(trailingPayload));
+      result = await gateioRequest("POST", "/spot/price_orders", "", trailingPayload);
 
     } else {
       /* ===== MARKET ORDER ===== */
@@ -104,12 +145,12 @@ module.exports = async (req, res) => {
         time_in_force: "fok"
       };
 
-      console.log("SENDING MARKET ORDER:", orderPayload);
+      console.log("SENDING MARKET ORDER:", JSON.stringify(orderPayload));
       result = await gateioRequest("POST", "/spot/orders", "", orderPayload);
     }
 
     if (!result.ok) {
-      console.error("[GATEIO_ERROR_DETAIL]", result.data);
+      console.error("[GATEIO_ERROR_DETAIL]", JSON.stringify(result.data));
       return res.status(result.status).json({ success: false, error: result.data });
     }
 
