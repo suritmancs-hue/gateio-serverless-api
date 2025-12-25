@@ -73,23 +73,16 @@ module.exports = async (req, res) => {
     }
 
     try {
-        // Ekspektasi Body: { "pair": "BTC_USDT", "amount": "10" }
-        // "amount" di sini adalah total USDT yang ingin dibelanjakan jika type=market
-        const { pair, amount } = req.body;
-
-        if (!pair || !amount) {
-            return res.status(400).json({ error: "Missing pair or amount in request body." });
-        }
-
-        console.log(`[INFO] Mencoba beli ${pair} senilai ${amount} USDT`);
+        const { pair, amount, side, type, price } = req.body;
 
         const orderPayload = {
-            currency_pair: pair.toUpperCase().replace("-", "_"), // Pastikan format BTC_USDT
-            side: "buy",
-            type: "market",      // Market Order
-            account: "spot",     // Akun Spot
-            amount: String(amount), 
-            time_in_force: "fok" // Fill-or-Kill (Selesaikan sekarang atau batalkan)
+            currency_pair: pair.toUpperCase().replace("-", "_"),
+            side: side || "buy", // Default buy
+            type: type || "market", // Default market
+            account: "spot",
+            amount: String(amount),
+            price: price || "0", // Jika limit, harga diisi. Jika market, 0.
+            time_in_force: type === "limit" ? "gtc" : "fok" 
         };
 
         const result = await gateioRequest("POST", "/spot/orders", "", orderPayload);
