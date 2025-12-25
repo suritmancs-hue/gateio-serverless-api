@@ -51,20 +51,19 @@ module.exports = async (req, res) => {
         if (type === "trigger") {
             const triggerPayload = {
                 trigger: {
-                    price: String(trigger_price),
-                    rule: rule, // ">=" atau "<="
-                    expiration: 86400 * 30 
+                    price: String(trigger_price), // Harga pemicu
+                    rule: rule,                   // ">=" untuk TP, "<=" untuk SL
+                    expiration: 86400 * 30        // Berlaku 30 hari
                 },
                 put: {
-                    type: "market", 
+                    type: "market",               // Eksekusi market saat terpicu
                     side: side || "sell",
-                    amount: String(amount)
-                    // HAPUS baris 'account: "spot"' di sini jika menyebabkan error
-                    // Pada price_orders, 'account' seringkali tidak diperlukan jika sudah di endpoint spot
+                    amount: String(amount)        // Jumlah koin yang dijual
                 },
                 currency_pair: pair.toUpperCase().replace("-", "_")
             };
             
+            // Kirim ke endpoint spot/price_orders
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
         }
         // --- SKENARIO 2: MARKET BUY ORDER (EKSEKUSI AWAL) ---
