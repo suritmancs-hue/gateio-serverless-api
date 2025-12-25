@@ -39,33 +39,44 @@ async function gateioRequest(method, path, query = "", bodyObject = null) {
     }
 }
 
+// ... (Bagian atas script tetap sama)
+
 module.exports = async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ error: "Method not allowed." });
-    
+    if (!GATEIO_KEY || !GATEIO_SECRET) return res.status(500).json({ error: "API Keys missing." });
+
     try {
         const { pair, amount, side, trigger_price, rule, type } = req.body;
         let result;
 
+        // --- GANTI BLOK INI ---
         if (type === "trigger") {
+            // Gabungkan definisinya di sini agar rapi
+            const putOrder = {
+                type: "market",
+                side: side || "sell",
+                amount: String(amount),
+                price: "0",      // Wajib ada sebagai placeholder market order
+                account: "spot"  // Pastikan tertulis "spot" (huruf kecil)
+            };
+
             const triggerPayload = {
                 trigger: {
                     price: String(trigger_price),
                     rule: String(rule),
-                    expiration: 86400 * 30
+                    expiration: 86400 * 30 
                 },
-                put: {
-                    type: "market",
-                    side: side || "sell",
-                    amount: String(amount),
-                    price: "0", // Tambahkan ini sebagai placeholder market order
-                    account: "spot" // Coba pindahkan ke dalam sini KEMBALI jika tanpa ini tetap error
-                },
+                put: putOrder,
                 currency_pair: String(pair).toUpperCase().replace("-", "_")
             };
-        
-            console.log("RE-TRY PAYLOAD:", JSON.stringify(triggerPayload));
+            
+            console.log("SENDING TRIGGER PAYLOAD:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
-        } else {
+        } 
+        // --- BATAS AKHIR PERUBAHAN ---
+        
+        else {
+            // Logika Market Buy tetap sama
             const orderPayload = {
                 currency_pair: String(pair).toUpperCase().replace("-", "_"),
                 side: side || "buy",
@@ -74,7 +85,6 @@ module.exports = async (req, res) => {
                 amount: String(amount),
                 time_in_force: "fok"
             };
-
             result = await gateioRequest("POST", "/spot/orders", "", orderPayload);
         }
 
@@ -82,11 +92,11 @@ module.exports = async (req, res) => {
         if (result.ok) {
             return res.status(200).json({
                 success: true,
+                message: `Order ${type || 'market'} ${pair} berhasil`,
                 order_id: result.data.id,
                 full_data: result.data 
             });
         } else {
-            // Lihat di sini jika masih error
             console.error("[GATEIO_ERROR_DETAIL]", JSON.stringify(result.data));
             return res.status(result.status).json({
                 success: false,
@@ -95,6 +105,7 @@ module.exports = async (req, res) => {
         }
 
     } catch (error) {
+        console.error("[CRITICAL] Server Error:", error);
         return res.status(500).json({ error: "Internal Error", message: error.message });
     }
 };
