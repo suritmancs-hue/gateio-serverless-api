@@ -1,4 +1,43 @@
-// ... (Bagian Signature & Request tetap sama)
+const crypto = require("crypto");
+const fetch = require("node-fetch");
+
+const GATEIO_KEY = process.env.GATEIO_KEY;
+const GATEIO_SECRET = process.env.GATEIO_SECRET;
+const API_HOST = "https://api.gateio.ws";
+const API_PREFIX = "/api/v4";
+
+function createGateioSignature(method, path, query, bodyString, timestamp, secret) {
+    const bodyHash = crypto.createHash('sha512').update(bodyString || "", 'utf8').digest('hex');
+    const signString = `${method}\n${path}\n${query || ""}\n${bodyHash}\n${timestamp}`;
+    return crypto.createHmac('sha512', secret).update(signString, 'utf8').digest('hex');
+}
+
+async function gateioRequest(method, path, query = "", bodyObject = null) {
+    const fullPath = API_PREFIX + path;
+    const ts = String(Math.floor(Date.now() / 1000));
+    const bodyString = bodyObject ? JSON.stringify(bodyObject) : "";
+    const sign = createGateioSignature(method, fullPath, query, bodyString, ts, GATEIO_SECRET);
+    const url = `${API_HOST}${fullPath}${query ? "?" + query : ""}`;
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "KEY": GATEIO_KEY,
+                "Timestamp": ts,
+                "SIGN": sign
+            },
+            body: method !== "GET" ? bodyString : undefined
+        });
+
+        const json = await response.json();
+        return { ok: response.ok, status: response.status, data: json };
+    } catch (err) {
+        return { ok: false, status: 500, data: { label: "FETCH_ERROR", message: err.message } };
+    }
+}
 
 module.exports = async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ error: "Method not allowed." });
