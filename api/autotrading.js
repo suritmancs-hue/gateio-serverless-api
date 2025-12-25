@@ -100,7 +100,7 @@ module.exports = async (req, res) => {
                 success: true,
                 message: `Berhasil membeli ${pair}`,
                 order_id: result.data.id,
-                filled_amount: result.data.filled_total
+                full_data: result.data 
             });
         } else {
             console.error("[ERROR] Gate.io Error:", result.data);
