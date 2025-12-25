@@ -76,20 +76,20 @@ module.exports = async (req, res) => {
         
        // --- SKENARIO 2: TRAILING STOP ORDER ---
         else if (type === "trailing") {
-            // Bangun objek putOrder secara manual tanpa time_in_force
+            // Bangun objek putOrder HANYA dengan parameter wajib
             const putOrder = {
                 type: "market",
                 side: side || "sell",
                 amount: String(amount),
-                account: "normal" // Sesuai Enum AccountEnum
+                account: "normal" // Gunakan 'normal' sesuai Enum AccountEnum
             };
         
             const trailingPayload = {
                 trigger: {
                     price: String(trigger_price), // Activation Price (TP1)
-                    rule: ">=",                   // Aktivasi saat naik
+                    rule: ">=",                   // Teraktivasi saat naik ke TP1
                     expiration: 86400 * 30,
-                    trail_value: "0.1"            // Nilai 10% (0.1)
+                    trail_value: String(trail_value) // Jarak trailing 10% (0.1)
                 },
                 put: putOrder,
                 market: marketPair
