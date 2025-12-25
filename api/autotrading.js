@@ -39,8 +39,6 @@ async function gateioRequest(method, path, query = "", bodyObject = null) {
     }
 }
 
-// ... (Bagian atas script tetap sama)
-
 module.exports = async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ error: "Method not allowed." });
     if (!GATEIO_KEY || !GATEIO_SECRET) return res.status(500).json({ error: "API Keys missing." });
@@ -51,14 +49,12 @@ module.exports = async (req, res) => {
 
         // --- SKENARIO 1: TRIGGER ORDER (TP/SL) ---
         if (type === "trigger") {
-            const putOrder = {
-                type: "market",
-                side: side || "sell",
-                amount: String(amount),
-                price: "0",         // Placeholder harga untuk market order
-                account: "normal"   // Menggunakan "normal" sesuai dokumen
-                // JANGAN masukkan time_in_force untuk market trigger order
-            };
+            // Membangun objek secara eksplisit untuk menjamin kebersihan properti
+            const putOrder = {};
+            putOrder.type = "market";           // Tipe Market
+            putOrder.side = side || "sell";     // Sisi Jual/Beli
+            putOrder.amount = String(amount);   // Jumlah koin (String)
+            putOrder.account = "normal";        // Akun normal untuk spot
         
             const triggerPayload = {
                 trigger: {
@@ -67,10 +63,10 @@ module.exports = async (req, res) => {
                     expiration: 86400 * 30 
                 },
                 put: putOrder,
-                market: String(pair).toUpperCase().replace("-", "_") // Menggunakan "market" sesuai dokumen
+                market: String(pair).toUpperCase().replace("-", "_") // Properti market level atas
             };
             
-            console.log("SENDING UPDATED TRIGGER PAYLOAD:", JSON.stringify(triggerPayload));
+            console.log("SENDING CLEANEST PAYLOAD:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
         }
         else {
