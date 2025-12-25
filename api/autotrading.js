@@ -47,32 +47,31 @@ module.exports = async (req, res) => {
         const { pair, amount, side, trigger_price, rule, type } = req.body;
         let result;
 
-        // --- SKENARIO 1: TRIGGER ORDER (TP/SL) ---
         if (type === "trigger") {
+            // Definisikan objek put secara eksplisit tanpa properti 'account'
+            const putOrder = {
+                type: "market",
+                side: side || "sell",
+                amount: String(amount)
+            };
+
             const triggerPayload = {
                 trigger: {
-                    price: String(trigger_price), // Harga pemicu
-                    rule: rule,                   // ">=" untuk TP, "<=" untuk SL
-                    expiration: 86400 * 30        // Berlaku 30 hari
+                    price: String(trigger_price),
+                    rule: rule, // ">=" atau "<="
+                    expiration: 86400 * 30 
                 },
-                put: {
-                    type: "market",               // Eksekusi market saat terpicu
-                    side: side || "sell",
-                    amount: String(amount)        // Jumlah koin yang dijual
-                },
+                put: putOrder, // Hanya berisi type, side, dan amount
                 currency_pair: pair.toUpperCase().replace("-", "_")
             };
             
-            // Kirim ke endpoint spot/price_orders
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
-        }
-        // --- SKENARIO 2: MARKET BUY ORDER (EKSEKUSI AWAL) ---
-        else {
+        } else {
             const orderPayload = {
                 currency_pair: pair.toUpperCase().replace("-", "_"),
                 side: side || "buy",
                 type: "market",
-                account: "spot",
+                account: "spot", // 'account' hanya boleh ada di /spot/orders biasa
                 amount: String(amount),
                 time_in_force: "fok"
             };
@@ -80,9 +79,7 @@ module.exports = async (req, res) => {
             result = await gateioRequest("POST", "/spot/orders", "", orderPayload);
         }
 
-        // --- HANDLING RESPONSE ---
         if (result.ok) {
-            console.log("[SUCCESS] Order Berhasil:", result.data);
             return res.status(200).json({
                 success: true,
                 message: `Order ${type || 'market'} ${pair} berhasil`,
@@ -90,7 +87,8 @@ module.exports = async (req, res) => {
                 full_data: result.data 
             });
         } else {
-            console.error("[ERROR] Gate.io Error:", result.data);
+            // Log payload yang dikirim untuk debugging di Vercel Logs
+            console.error("[GATEIO_ERROR_DETAIL]", result.data);
             return res.status(result.status).json({
                 success: false,
                 error: result.data
@@ -98,7 +96,6 @@ module.exports = async (req, res) => {
         }
 
     } catch (error) {
-        console.error("[CRITICAL] Server Error:", error);
         return res.status(500).json({ error: "Internal Error", message: error.message });
     }
 };
