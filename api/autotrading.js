@@ -89,7 +89,6 @@ module.exports = async (req, res) => {
     if (type === "trigger") {
       const formattedPrice = toPrecision(trigger_price, pricePrecision);
       
-      // Validasi agar tidak mengirim harga '0'
       if (formattedPrice === "0") throw new Error(`Trigger price resolved to 0 for ${pair}`);
 
       const triggerPayload = {
@@ -102,7 +101,10 @@ module.exports = async (req, res) => {
           type: "market",
           side: side || "sell",
           amount: toPrecision(amount, amountPrecision),
-          account: "normal" // Tanpa time_in_force untuk market trigger
+          account: "normal",
+          // Gate.io v4 Price Orders untuk Market sering menolak 'ioc' 
+          // Jika Anda ingin tetap ada, pastikan huruf kecil 'ioc' atau 'fok'
+          time_in_force: "ioc" 
         },
         market: marketPair
       };
@@ -110,38 +112,15 @@ module.exports = async (req, res) => {
       console.log("SENDING TRIGGER ORDER:", JSON.stringify(triggerPayload));
       result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
 
-    } 
-    /* ===== TRAILING STOP ===== */
-    else if (type === "trailing") {
-      const formattedPrice = toPrecision(trigger_price, pricePrecision);
-      
-      const trailingPayload = {
-        trigger: {
-          price: formattedPrice,
-          rule: ">=",
-          expiration: 86400 * 30,
-          trail_value: String(trail_value || "0.1") // Default 10%
-        },
-        put: {
-          type: "market",
-          side: "sell",
-          amount: toPrecision(amount, amountPrecision),
-          account: "normal"
-        },
-        market: marketPair
-      };
-
-      console.log("SENDING TRAILING STOP:", JSON.stringify(trailingPayload));
-      result = await gateioRequest("POST", "/spot/price_orders", "", trailingPayload);
-
     } else {
-      /* ===== MARKET ORDER ===== */
+      /* ===== MARKET ORDER (Eksekusi Awal) ===== */
       const orderPayload = {
         currency_pair: marketPair,
         side: side || "buy",
         type: "market",
         account: "spot",
         amount: toPrecision(amount, amountPrecision),
+        // Untuk orders/spot, 'fok' biasanya lebih diterima
         time_in_force: "fok"
       };
 
