@@ -49,17 +49,16 @@ module.exports = async (req, res) => {
         const { pair, amount, side, trigger_price, rule, type } = req.body;
         let result;
 
-        // --- GANTI BLOK INI ---
+        // --- SKENARIO 1: TRIGGER ORDER (TP/SL) ---
         if (type === "trigger") {
-            // Gabungkan definisinya di sini agar rapi
+            // Objek 'put' hanya berisi detail eksekusi order
             const putOrder = {
                 type: "market",
                 side: side || "sell",
-                amount: String(amount),
-                price: String(trigger_price),      // Wajib ada sebagai placeholder market order
-                account: "spot"  // Pastikan tertulis "spot" (huruf kecil)
+                amount: String(amount)
+                // JANGAN ada 'account' di sini
             };
-
+        
             const triggerPayload = {
                 trigger: {
                     price: String(trigger_price),
@@ -67,16 +66,15 @@ module.exports = async (req, res) => {
                     expiration: 86400 * 30 
                 },
                 put: putOrder,
+                account: "spot", // PINDAH KE SINI: Level utama sejajar dengan trigger dan put
                 currency_pair: String(pair).toUpperCase().replace("-", "_")
             };
             
-            console.log("SENDING TRIGGER PAYLOAD:", JSON.stringify(triggerPayload));
+            console.log("SENDING CORRECTED TRIGGER PAYLOAD:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
-        } 
-        // --- BATAS AKHIR PERUBAHAN ---
-        
+        }      
         else {
-            // Logika Market Buy tetap sama
+            // Logika Market Buy
             const orderPayload = {
                 currency_pair: String(pair).toUpperCase().replace("-", "_"),
                 side: side || "buy",
