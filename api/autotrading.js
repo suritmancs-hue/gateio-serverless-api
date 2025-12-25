@@ -44,8 +44,7 @@ module.exports = async (req, res) => {
     if (!GATEIO_KEY || !GATEIO_SECRET) return res.status(500).json({ error: "API Keys missing." });
 
     try {
-        // Ambil semua parameter yang mungkin dikirim dari Google Apps Script
-        const { pair, amount, side, trigger_price, rule, type, trail_value } = req.body;
+        const { pair, amount, side, trigger_price, rule, type } = req.body;
         let result;
 
         const marketPair = String(pair).toUpperCase().replace("-", "_");
@@ -73,33 +72,7 @@ module.exports = async (req, res) => {
             console.log("SENDING TRIGGER TP/SL:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
         } 
-        
-       // --- SKENARIO 2: TRAILING STOP ORDER ---
-        else if (type === "trailing") {
-            // Bangun objek putOrder HANYA dengan parameter wajib
-            const putOrder = {
-                type: "market",
-                side: side || "sell",
-                amount: String(amount),
-                account: "normal" // Gunakan 'normal' sesuai Enum AccountEnum
-            };
-        
-            const trailingPayload = {
-                trigger: {
-                    price: String(trigger_price), // Activation Price (TP1)
-                    rule: ">=",                   // Teraktivasi saat naik ke TP1
-                    expiration: 86400 * 30,
-                    trail_value: String(trail_value) // Jarak trailing 10% (0.1)
-                },
-                put: putOrder,
-                market: marketPair
-            };
-        
-            console.log("SENDING CLEAN TRAILING STOP:", JSON.stringify(trailingPayload));
-            result = await gateioRequest("POST", "/spot/price_orders", "", trailingPayload);
-        }
-
-        // --- SKENARIO 3: MARKET BUY/SELL (EKSEKUSI AWAL) ---
+        // --- SKENARIO 2: MARKET BUY/SELL (EKSEKUSI AWAL) ---
         else {
             const orderPayload = {
                 currency_pair: marketPair,
