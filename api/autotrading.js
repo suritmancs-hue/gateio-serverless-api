@@ -47,29 +47,31 @@ module.exports = async (req, res) => {
         const { pair, amount, side, trigger_price, rule, type } = req.body;
         let result;
 
-        // --- SKENARIO 1: TRIGGER ORDER (TP/SL) ---
-        if (type === "trigger") {
+        // --- SKENARIO 1: TRIGGER / TRAILING ORDER ---
+        if (type === "trigger" || type === "trailing") {
             const putOrder = {
                 type: "market",
-                side: side || "sell",
+                side: "sell",
                 amount: String(amount),
                 account: "normal",
-                // Berdasarkan kode Java, field ini didefinisikan sebagai "time_in_force" secara serial
-                // Untuk market order, gunakan "ioc" (Immediate Or Cancel)
-                time_in_force: "ioc" 
+                time_in_force: "ioc"
             };
         
             const triggerPayload = {
                 trigger: {
-                    price: String(trigger_price),
-                    rule: String(rule),
+                    price: String(trigger_price), // Untuk trailing, ini adalah Activation Price (TP1)
+                    rule: rule,                   // ">=" untuk aktivasi saat naik ke TP1
                     expiration: 86400 * 30 
                 },
                 put: putOrder,
-                market: String(pair).toUpperCase().replace("-", "_") 
+                market: String(pair).toUpperCase().replace("-", "_")
             };
+        
+            // Jika tipe trailing, tambahkan trail_value (jarak dari harga tertinggi)
+            if (type === "trailing") {
+                triggerPayload.trigger.trail_value = String(trail_value); // Contoh: "0.1" untuk 10%
+            }
             
-            console.log("SENDING TRIGGER WITH TIF:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
         }
         else {
