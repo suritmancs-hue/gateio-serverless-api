@@ -44,40 +44,65 @@ module.exports = async (req, res) => {
     if (!GATEIO_KEY || !GATEIO_SECRET) return res.status(500).json({ error: "API Keys missing." });
 
     try {
-        const { pair, amount, side, trigger_price, rule, type } = req.body;
+        // Ambil semua parameter yang mungkin dikirim dari Google Apps Script
+        const { pair, amount, side, trigger_price, rule, type, trail_value } = req.body;
         let result;
 
-        // --- SKENARIO 1: TRIGGER / TRAILING ORDER ---
-        if (type === "trigger" || type === "trailing") {
+        const marketPair = String(pair).toUpperCase().replace("-", "_");
+
+        // --- SKENARIO 1: TRIGGER ORDER (TP/SL) ---
+        if (type === "trigger") {
             const putOrder = {
                 type: "market",
-                side: "sell",
+                side: side || "sell",
                 amount: String(amount),
                 account: "normal",
                 time_in_force: "ioc"
             };
-        
+
             const triggerPayload = {
                 trigger: {
-                    price: String(trigger_price), // Untuk trailing, ini adalah Activation Price (TP1)
-                    rule: rule,                   // ">=" untuk aktivasi saat naik ke TP1
+                    price: String(trigger_price),
+                    rule: String(rule),
                     expiration: 86400 * 30 
                 },
                 put: putOrder,
-                market: String(pair).toUpperCase().replace("-", "_")
+                market: marketPair
             };
-        
-            // Jika tipe trailing, tambahkan trail_value (jarak dari harga tertinggi)
-            if (type === "trailing") {
-                triggerPayload.trigger.trail_value = String(trail_value); // Contoh: "0.1" untuk 10%
-            }
             
+            console.log("SENDING TRIGGER TP/SL:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
+        } 
+        
+        // --- SKENARIO 2: TRAILING STOP ORDER ---
+        else if (type === "trailing") {
+            const putOrder = {
+                type: "market",
+                side: side || "sell",
+                amount: String(amount),
+                account: "normal",
+                time_in_force: "ioc"
+            };
+
+            const trailingPayload = {
+                trigger: {
+                    price: String(trigger_price), // Activation Price
+                    rule: String(rule),          // ">="
+                    expiration: 86400 * 30,
+                    trail_value: String(trail_value) // Jarak trailing, misal "0.1"
+                },
+                put: putOrder,
+                market: marketPair
+            };
+
+            console.log("SENDING TRAILING STOP:", JSON.stringify(trailingPayload));
+            result = await gateioRequest("POST", "/spot/price_orders", "", trailingPayload);
         }
+
+        // --- SKENARIO 3: MARKET BUY/SELL (EKSEKUSI AWAL) ---
         else {
-            // Logika Market Buy
             const orderPayload = {
-                currency_pair: String(pair).toUpperCase().replace("-", "_"),
+                currency_pair: marketPair,
                 side: side || "buy",
                 type: "market",
                 account: "spot",
