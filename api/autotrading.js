@@ -76,26 +76,23 @@ module.exports = async (req, res) => {
         
         // --- SKENARIO 2: TRAILING STOP ORDER ---
         else if (type === "trailing") {
-            const putOrder = {
-                type: "market",
-                side: side || "sell",
-                amount: String(amount),
-                account: "normal",
-                time_in_force: "ioc"
-            };
-        
             const trailingPayload = {
                 trigger: {
-                    price: String(trigger_price), // Harga Aktivasi (TP1)
-                    rule: ">=",                   // Aktif saat harga naik ke TP1
-                    expiration: 86400 * 30
+                    price: String(trigger_price), // Harga Aktivasi
+                    rule: ">=",                   
+                    expiration: 86400 * 30,
+                    // TULIS DI SINI:
+                    trail_value: "0.1"            // Gunakan "0.1" untuk jarak 10%
                 },
-                put: putOrder,
-                market: marketPair,
-                trail_percentage: "10" 
+                put: {
+                    type: "market",
+                    side: "sell",
+                    amount: String(amount),
+                    account: "normal"
+                },
+                market: marketPair
             };
-        
-            console.log("SENDING REAL TRAILING STOP:", JSON.stringify(trailingPayload));
+            
             result = await gateioRequest("POST", "/spot/price_orders", "", trailingPayload);
         }
 
