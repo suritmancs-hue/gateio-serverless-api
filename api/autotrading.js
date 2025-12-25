@@ -51,12 +51,12 @@ module.exports = async (req, res) => {
 
         // --- SKENARIO 1: TRIGGER ORDER (TP/SL) ---
         if (type === "trigger") {
-            // Objek 'put' hanya berisi detail eksekusi order
             const putOrder = {
                 type: "market",
                 side: side || "sell",
-                amount: String(amount)
-                // JANGAN ada 'account' di sini
+                amount: String(amount),
+                price: "0",          // Tetap masukkan sebagai placeholder
+                account: "normal"    // BERDASARKAN DOKUMEN: Gunakan "normal" untuk Spot Trading
             };
         
             const triggerPayload = {
@@ -66,13 +66,12 @@ module.exports = async (req, res) => {
                     expiration: 86400 * 30 
                 },
                 put: putOrder,
-                account: "spot", // PINDAH KE SINI: Level utama sejajar dengan trigger dan put
-                currency_pair: String(pair).toUpperCase().replace("-", "_")
+                market: String(pair).toUpperCase().replace("-", "_") // BERDASARKAN DOKUMEN: Gunakan "market"
             };
             
-            console.log("SENDING CORRECTED TRIGGER PAYLOAD:", JSON.stringify(triggerPayload));
+            console.log("SENDING FINAL TRIGGER PAYLOAD:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
-        }      
+        }   
         else {
             // Logika Market Buy
             const orderPayload = {
