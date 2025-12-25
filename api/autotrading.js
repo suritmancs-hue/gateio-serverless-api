@@ -47,26 +47,23 @@ module.exports = async (req, res) => {
         let result;
 
         if (type === "trigger") {
-            // PAKSA OBJEK BERSIH TANPA PROPERTI LAIN
-            const cleanPut = {
-                type: "market",
-                side: side || "sell",
-                amount: String(amount)
-            };
-
             const triggerPayload = {
                 trigger: {
                     price: String(trigger_price),
                     rule: String(rule),
                     expiration: 86400 * 30
                 },
-                put: cleanPut,
+                put: {
+                    type: "market",
+                    side: side || "sell",
+                    amount: String(amount),
+                    price: "0", // Tambahkan ini sebagai placeholder market order
+                    account: "spot" // Coba pindahkan ke dalam sini KEMBALI jika tanpa ini tetap error
+                },
                 currency_pair: String(pair).toUpperCase().replace("-", "_")
             };
-
-            // DEBUG: Cek di Real-time Logs Vercel
-            console.log("PAYLOAD TO GATEIO:", JSON.stringify(triggerPayload));
-            
+        
+            console.log("RE-TRY PAYLOAD:", JSON.stringify(triggerPayload));
             result = await gateioRequest("POST", "/spot/price_orders", "", triggerPayload);
         } else {
             const orderPayload = {
