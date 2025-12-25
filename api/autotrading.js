@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
                 type: "market",
                 side: side || "sell",
                 amount: String(amount),
-                price: "0",      // Wajib ada sebagai placeholder market order
+                price: String(trigger_price),      // Wajib ada sebagai placeholder market order
                 account: "spot"  // Pastikan tertulis "spot" (huruf kecil)
             };
 
