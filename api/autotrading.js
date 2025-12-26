@@ -80,7 +80,7 @@ module.exports = async (req, res) => {
 
     // 🔑 Ambil info resmi dari Gate.io
     const pairInfo = await getPairInfo(marketPair);
-    const pricePrecision = pairInfo.price_precision;
+    const pricePrecision = pairInfo.precision;
     const amountPrecision = pairInfo.amount_precision;
 
     let result;
