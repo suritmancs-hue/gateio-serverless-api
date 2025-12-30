@@ -89,6 +89,25 @@ module.exports = async (req, res) => {
       return res.status(200).json({ success: true, available: available });
     }
 
+    if (type === "get_ticker") {
+        // Memanggil API public Gate.io untuk mendapatkan harga terakhir
+        // Endpoint: GET /spot/tickers
+        const tickerRes = await gateioRequest("GET", "/spot/tickers", `currency_pair=${marketPair}`);
+        
+        if (!tickerRes.ok) {
+            return res.status(tickerRes.status).json({ success: false, error: tickerRes.data });
+        }
+    
+        // Gate.io mengembalikan array, ambil index ke-0
+        const tickerData = tickerRes.data[0]; 
+        return res.status(200).json({ 
+            success: true, 
+            last: tickerData.last, // Harga terakhir
+            high: tickerData.high_24h,
+            low: tickerData.low_24h
+        });
+    }
+    
     // 🔑 Ambil info resmi dari Gate.io
     const pairInfo = await getPairInfo(marketPair);
     const pricePrecision = pairInfo.precision;
