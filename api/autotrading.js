@@ -45,15 +45,14 @@ const pairCache = new Map();
 function toPrecision(value, precision) {
   if (value === undefined || value === null || isNaN(value)) return "0";
   
-  // Menggunakan toLocaleString untuk memaksa format desimal murni
   const num = Number(value);
-  const formatted = num.toLocaleString('fullwide', {
-    useGrouping: false,
-    maximumFractionDigits: precision
-  });
   
-  // Bersihkan trailing zeros yang tidak perlu agar tidak memicu 'invalid argument'
-  return String(parseFloat(formatted));
+  // Gunakan toFixed untuk mendapatkan string desimal yang pasti (bukan scientific)
+  // Ini jauh lebih aman untuk koin dengan banyak angka nol di depan
+  let formatted = num.toFixed(precision);
+  
+  // Pastikan jika hasilnya kosong atau tidak valid, jangan kirim "0" yang bikin error
+  return (formatted === "" || formatted === "0") ? num.toFixed(precision) : formatted;
 }
 
 async function getPairInfo(pair) {
