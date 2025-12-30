@@ -78,6 +78,17 @@ module.exports = async (req, res) => {
     const { pair, amount, side, trigger_price, rule, type, trail_value } = req.body;
     const marketPair = String(pair).toUpperCase().replace("-", "_");
 
+    /* ===== FITUR CEK SALDO ===== */
+    if (type === "get_balance") {
+      const currency = String(pair).split('_')[0].toUpperCase();
+      const balanceRes = await gateioRequest("GET", "/spot/accounts", `currency=${currency}`);
+      
+      if (!balanceRes.ok) return res.status(balanceRes.status).json({ success: false, error: balanceRes.data });
+      
+      const available = balanceRes.data.length > 0 ? balanceRes.data[0].available : "0";
+      return res.status(200).json({ success: true, available: available });
+    }
+
     // 🔑 Ambil info resmi dari Gate.io
     const pairInfo = await getPairInfo(marketPair);
     const pricePrecision = pairInfo.precision;
