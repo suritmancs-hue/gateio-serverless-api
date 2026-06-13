@@ -10,11 +10,9 @@ const DELAY_MS = 335;
 
 // --- Konfigurasi Endpoint Gate.io ---
 const GATEIO_CANDLE_URL = 'https://api.gateio.ws/api/v4/spot/candlesticks';
-const CANDLE_INTERVAL = '4h';
+const CANDLE_INTERVAL = '1h';
 const CANDLE_REQUIRED_COMPLETED = 100;
 
-// Asumsi interval '4h' = 14400 detik (untuk perhitungan waktu mundur)
-const INTERVAL_SECONDS = 14400;
 // ------------------------------------------
 
 // --- Fungsi Konversi Timestamp ke UTC ---
