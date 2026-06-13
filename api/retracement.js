@@ -62,9 +62,7 @@ function calculateRSI(closes, period = 14) {
 /**
  * Menghitung Metrik yang Direquest
  */
-function calculateMetrics(timestamp, highs, lows, closes, opens, volumes) {
-    const timestampUTC = convertUnixTimestampToUTC(timestamp);
-    console.log(timestampUTC);
+function calculateMetrics(highs, lows, closes, opens, volumes) {
     const lastClose = closes[closes.length - 1];
     const lastOpen = opens[opens.length - 1];
     
@@ -74,7 +72,6 @@ function calculateMetrics(timestamp, highs, lows, closes, opens, volumes) {
     // 2. Filter: Jika turun (lastChange < 1), kembalikan 0
     if (lastChange < 1) {
         return {
-            timestamp: timestampUTC,
             lastClose: Number(lastClose.toFixed(5)),
             volumespike: 0,
             rangeClose: 0,
@@ -109,7 +106,6 @@ function calculateMetrics(timestamp, highs, lows, closes, opens, volumes) {
     // Ini mengembalikan 0 untuk indikator teknikal
     if (maxHigh <= minLow) {
         return {
-            timestamp: timestampUTC,
             lastClose: Number(lastClose.toFixed(5)),
             volumespike: 0,
             rangeClose: 0,
@@ -136,7 +132,6 @@ function calculateMetrics(timestamp, highs, lows, closes, opens, volumes) {
     const volumeSpike = maVol10 > 0 ? (lastVolume / maVol10) : 0;
 
     return {
-        timestamp: timestampUTC,
         lastClose: Number(lastClose.toFixed(5)),
         volumespike: Number(volumeSpike.toFixed(2)),
         rangeClose: Number((Math.max(...closes) / Math.min(...closes)).toFixed(3)), 
@@ -223,16 +218,21 @@ export default async function handler(req, res) {
         // Mapping Array berdasarkan dokumentasi Gate.io Spot:
         // [0:t, 1:v_quote, 2:c, 3:h, 4:l, 5:o, 6:sum_base, 7:window_closed]
         const data = result.data;
-        const time = data.map(d => Number(d[0]));
         const closes = data.map(d => Number(d[2]));
         const highs = data.map(d => Number(d[3]));
         const lows = data.map(d => Number(d[4]));
         const opens = data.map(d => Number(d[5]));
         const volumes = data.map(d => Number(d[6]));
 
-        const calc = calculateMetrics(time, highs, lows, closes, opens, volumes);
+        const calc = calculateMetrics(highs, lows, closes, opens, volumes);
 
-        return { symbol: result.symbol, ...calc };
+        const timestamp = convertUnixTimestampToUTC(data[data.length - 1][0]);
+        // Jika hasil timestamp adalah string kosong, kita paksa logging untuk debug
+        if (timestamp === "") {
+            console.log(`Debug: Timestamp gagal dikonversi untuk simbol ${result.symbol}. Raw value:`, rawTimestamp);
+        }
+
+        return { symbol: result.symbol, timestamp: timestamp, ...calc };
     });
 
     res.status(200).json({ status: 'Success', data: finalResultArray });
