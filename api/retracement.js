@@ -72,7 +72,7 @@ function calculateMetrics(timestamp, highs, lows, closes, opens, volumes) {
     // 2. Filter: Jika turun (lastChange < 1), kembalikan 0
     if (lastChange < 1) {
         return {
-            timestamp:timestamp,
+            timestamp: timestamp,
             lastClose: Number(lastClose.toFixed(5)),
             volumespike: 0,
             rangeClose: 0,
@@ -107,7 +107,7 @@ function calculateMetrics(timestamp, highs, lows, closes, opens, volumes) {
     // Ini mengembalikan 0 untuk indikator teknikal
     if (maxHigh <= minLow) {
         return {
-            timestamp:timestamp,
+            timestamp: timestamp,
             lastClose: Number(lastClose.toFixed(5)),
             volumespike: 0,
             rangeClose: 0,
@@ -134,7 +134,7 @@ function calculateMetrics(timestamp, highs, lows, closes, opens, volumes) {
     const volumeSpike = maVol10 > 0 ? (lastVolume / maVol10) : 0;
 
     return {
-        timestamp:timestamp,
+        timestamp: timestamp,
         lastClose: Number(lastClose.toFixed(5)),
         volumespike: Number(volumeSpike.toFixed(2)),
         rangeClose: Number((Math.max(...closes) / Math.min(...closes)).toFixed(3)), 
@@ -211,7 +211,11 @@ export default async function handler(req, res) {
 
     const finalResultArray = candleResults.map(result => {
         if (!result.data || result.data.length < CANDLE_REQUIRED_COMPLETED) {
-            return { symbol: result.symbol, timestamp: 'Data Kurang', lastClose: null };
+            return { 
+                symbol: result.symbol, 
+                timestamp: "Data Kurang",
+                lastClose: 0, volumespike: 0, rangeClose: 0, f05: 0, f0618: 0, rsi: 0, lastChange: 0 
+                };
         }
 
         // Mapping Array berdasarkan dokumentasi Gate.io Spot:
