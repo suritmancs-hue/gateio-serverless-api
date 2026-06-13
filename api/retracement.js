@@ -150,6 +150,8 @@ async function executeBatchFetch(requests, customHeaders) {
     return allResults;
 }
 
+// ... (Bagian atas kode tetap sama)
+
 // =======================================================
 // HANDLER UTAMA VERCEL
 // =======================================================
@@ -159,10 +161,9 @@ export default async function handler(req, res) {
     }
     
     const { symbols, config } = req.body;
-    if (!symbols || !Array.isArray(symbols)) return res.status(400).send('Simbol tidak valid.');
+    console.log(`Menerima request untuk ${symbols.length} simbol.`);
     
     const CUSTOM_HEADERS = config.CUSTOM_HEADERS || {};
-    
     const syncMap = new Map();
     symbols.forEach(symbol => syncMap.set(symbol, { statsCompleted: [], highsArray: [], lowsArray: [], closesArray: [], opensArray: [], volumesArray: [] }));
 
@@ -175,9 +176,15 @@ export default async function handler(req, res) {
     const candleRequests = [];
 
     statsResults.forEach(result => {
-        if (!result.data || result.error) return;
+        if (!result.data || result.error) {
+            console.log(`Error Stats untuk ${result.symbol}: ${result.error || 'Data kosong'}`);
+            return;
+        }
         const completedStats = result.data.slice(0, result.data.length - 1); 
-        if (completedStats.length < STATS_REQUIRED_COMPLETED) return;
+        if (completedStats.length < STATS_REQUIRED_COMPLETED) {
+            console.log(`Stats kurang untuk ${result.symbol}: Hanya dapat ${completedStats.length} data.`);
+            return;
+        }
 
         const syncData = syncMap.get(result.symbol);
         syncData.statsCompleted = completedStats;
@@ -190,14 +197,24 @@ export default async function handler(req, res) {
         });
     });
     
+    console.log(`Memulai fetch ${candleRequests.length} candle request.`);
     const candleResults = await executeBatchFetch(candleRequests, CUSTOM_HEADERS);
 
     candleResults.forEach(result => {
-        if (!result.data || result.error) return;
+        if (!result.data || result.error) {
+            console.log(`Error Candle untuk ${result.symbol}: ${result.error || 'Data kosong'}`);
+            return;
+        }
         const syncData = syncMap.get(result.symbol);
+        
+        // --- LOG PENTING UNTUK DEBUG ---
         const synchronizedData = result.data.filter(c => syncData.statsCompleted.find(s => s.time === c.t));
+        console.log(`Sinkronisasi ${result.symbol}: Diterima ${result.data.length} candle, setelah sinkron tersisa ${synchronizedData.length}.`);
 
-        if (synchronizedData.length < CANDLE_REQUIRED_COMPLETED) return;
+        if (synchronizedData.length < CANDLE_REQUIRED_COMPLETED) {
+            console.log(`Data tidak cukup setelah sinkronisasi untuk ${result.symbol}: ${synchronizedData.length} < ${CANDLE_REQUIRED_COMPLETED}`);
+            return;
+        }
         
         syncData.timestampUTC = convertUnixTimestampToUTC(synchronizedData[synchronizedData.length - 1].t);
         syncData.highsArray = synchronizedData.map(d => Number(d.h)).slice(-CANDLE_REQUIRED_COMPLETED);
@@ -210,9 +227,13 @@ export default async function handler(req, res) {
     const finalResultArray = symbols.map(symbol => {
         const syncData = syncMap.get(symbol);
         let calc = { lastClose: null, volumespike: null, rangeClose: null, f05: null, f0618: null, rsi: null, lastChange: null };
+        
         if (syncData.closesArray.length === CANDLE_REQUIRED_COMPLETED) {
             calc = calculateMetrics(syncData.highsArray, syncData.lowsArray, syncData.closesArray, syncData.opensArray, syncData.volumesArray);
+        } else {
+            console.log(`Hasil Perhitungan untuk ${symbol}: Data Kurang (Jumlah closesArray: ${syncData.closesArray.length})`);
         }
+        
         return { symbol, timestamp: syncData.timestampUTC || 'Data Kurang', ...calc }; 
     });
 
