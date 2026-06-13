@@ -65,6 +65,24 @@ function calculateRSI(closes, period = 14) {
 function calculateMetrics(highs, lows, closes, opens, volumes) {
     const lastClose = closes[closes.length - 1];
     const lastOpen = opens[opens.length - 1];
+    
+    // --- 1. Hitung lastChange terlebih dahulu ---
+    const lastChange = lastClose / lastOpen;
+
+    // --- 2. Filter: Jika turun (lastChange < 1), kembalikan 0 ---
+    if (lastChange < 1) {
+        return {
+            lastClose: Number(lastClose.toFixed(4)),
+            volumespike: 0,
+            rangeClose: 0,
+            f05: 0,
+            f0618: 0,
+            rsi: null,
+            lastChange: Number(lastChange.toFixed(4))
+        };
+    }
+
+    // --- 3. Jika naik (lastChange >= 1), lanjut hitung indikator lainnya ---
     const lastVolume = volumes[volumes.length - 1];
 
     const maxClose = Math.max(...closes);
@@ -80,11 +98,10 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     const f0618 = maxHigh - (uptrendRange * 0.618);
 
     const rsi = calculateRSI(closes, 14);
-    const lastChange = lastClose / lastOpen;
 
     // --- Perhitungan Volume Spike ---
     const periodVol = 10;
-    const last10Volumes = volumes.slice((-1-periodVol), -1);
+    const last10Volumes = volumes.slice((-1 - periodVol), -1);
     const sumVol10 = last10Volumes.reduce((acc, curr) => acc + curr, 0);
     const maVol10 = sumVol10 / periodVol;
     
