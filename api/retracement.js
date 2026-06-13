@@ -208,7 +208,6 @@ export default async function handler(req, res) {
 
     const finalResultArray = candleResults.map(result => {
         if (!result.data || result.data.length < CANDLE_REQUIRED_COMPLETED) {
-            console.log(`Data kurang untuk ${result.symbol}: ${result.data ? result.data.length : 0}`);
             return { symbol: result.symbol, timestamp: 'Data Kurang', lastClose: null };
         }
 
