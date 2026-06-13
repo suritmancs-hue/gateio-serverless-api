@@ -11,7 +11,7 @@ const DELAY_MS = 335;
 // --- Konfigurasi Endpoint Gate.io ---
 const GATEIO_CANDLE_URL = 'https://api.gateio.ws/api/v4/spot/candlesticks';
 const CANDLE_INTERVAL = '1h';
-const CANDLE_REQUIRED_COMPLETED = 100;
+const CANDLE_REQUIRED_COMPLETED = 70;
 
 // ------------------------------------------
 
@@ -66,40 +66,64 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     const lastClose = closes[closes.length - 1];
     const lastOpen = opens[opens.length - 1];
     
-    // --- 1. Hitung lastChange terlebih dahulu ---
+    // 1. Hitung lastChange
     const lastChange = lastClose / lastOpen;
 
-    // --- 2. Filter: Jika turun (lastChange < 1), kembalikan 0 ---
+    // 2. Filter: Jika turun (lastChange < 1), kembalikan 0
     if (lastChange < 1) {
         return {
-            lastClose: Number(lastClose.toFixed(4)),
+            lastClose: Number(lastClose.toFixed(5)),
             volumespike: 0,
             rangeClose: 0,
             f05: 0,
             f0618: 0,
-            rsi: null,
-            lastChange: Number(lastChange.toFixed(4))
+            rsi: 0,
+            lastChange: Number(lastChange.toFixed(3))
         };
     }
 
-    // --- 3. Jika naik (lastChange >= 1), lanjut hitung indikator lainnya ---
-    const lastVolume = volumes[volumes.length - 1];
+    // 3. Cari titik Min terlebih dahulu
+    let minLow = Infinity;
+    let minIndex = -1;
 
-    const maxClose = Math.max(...closes);
-    const minClose = Math.min(...closes);
-    const rangeClose = maxClose / minClose; 
+    for (let i = 0; i < lows.length; i++) {
+        if (lows[i] < minLow) {
+            minLow = lows[i];
+            minIndex = i;
+        }
+    }
 
-    const maxHigh = Math.max(...highs);
-    const minLow = Math.min(...lows);
+    // 4. Cari titik Max SETELAH titik Min (minIndex)
+    let maxHigh = -Infinity;
     
-    // Fibonacci Retracement (Uptrend)
+    for (let i = minIndex; i < highs.length; i++) {
+        if (highs[i] > maxHigh) {
+            maxHigh = highs[i];
+        }
+    }
+
+    // 5. FILTER TAMBAHAN: Jika tidak ada Max setelah Min (atau max <= min)
+    // Ini mengembalikan 0 untuk indikator teknikal
+    if (maxHigh <= minLow) {
+        return {
+            lastClose: Number(lastClose.toFixed(5)),
+            volumespike: 0,
+            rangeClose: 0,
+            f05: 0,
+            f0618: 0,
+            rsi: 0,
+            lastChange: Number(lastChange.toFixed(3))
+        };
+    }
+
+    // --- Lanjut jika Uptrend Valid ---
     const uptrendRange = maxHigh - minLow;
     const f05 = maxHigh - (uptrendRange * 0.5);
     const f0618 = maxHigh - (uptrendRange * 0.618);
 
     const rsi = calculateRSI(closes, 14);
 
-    // --- Perhitungan Volume Spike ---
+    const lastVolume = volumes[volumes.length - 1];
     const periodVol = 10;
     const last10Volumes = volumes.slice((-1 - periodVol), -1);
     const sumVol10 = last10Volumes.reduce((acc, curr) => acc + curr, 0);
@@ -108,13 +132,13 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     const volumeSpike = maVol10 > 0 ? (lastVolume / maVol10) : 0;
 
     return {
-        lastClose: Number(lastClose.toFixed(4)),
+        lastClose: Number(lastClose.toFixed(5)),
         volumespike: Number(volumeSpike.toFixed(2)),
-        rangeClose: Number(rangeClose.toFixed(4)),
-        f05: Number(f05.toFixed(4)),
-        f0618: Number(f0618.toFixed(4)),
-        rsi: rsi !== null ? Number(rsi.toFixed(2)) : null,
-        lastChange: Number(lastChange.toFixed(4))
+        rangeClose: Number((Math.max(...closes) / Math.min(...closes)).toFixed(3)), 
+        f05: Number(f05.toFixed(5)),
+        f0618: Number(f0618.toFixed(5)),
+        rsi: rsi !== null ? Number(rsi.toFixed(2)) : 0,
+        lastChange: Number(lastChange.toFixed(3))
     };
 }
 
