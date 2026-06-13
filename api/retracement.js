@@ -62,7 +62,7 @@ function calculateRSI(closes, period = 14) {
 /**
  * Menghitung Metrik yang Direquest
  */
-function calculateMetrics(highs, lows, closes, opens, volumes) {
+function calculateMetrics(timestamp, highs, lows, closes, opens, volumes) {
     const lastClose = closes[closes.length - 1];
     const lastOpen = opens[opens.length - 1];
     
@@ -72,6 +72,7 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     // 2. Filter: Jika turun (lastChange < 1), kembalikan 0
     if (lastChange < 1) {
         return {
+            timestamp:timestamp,
             lastClose: Number(lastClose.toFixed(5)),
             volumespike: 0,
             rangeClose: 0,
@@ -106,6 +107,7 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     // Ini mengembalikan 0 untuk indikator teknikal
     if (maxHigh <= minLow) {
         return {
+            timestamp:timestamp,
             lastClose: Number(lastClose.toFixed(5)),
             volumespike: 0,
             rangeClose: 0,
@@ -132,6 +134,7 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     const volumeSpike = maVol10 > 0 ? (lastVolume / maVol10) : 0;
 
     return {
+        timestamp:timestamp,
         lastClose: Number(lastClose.toFixed(5)),
         volumespike: Number(volumeSpike.toFixed(2)),
         rangeClose: Number((Math.max(...closes) / Math.min(...closes)).toFixed(3)), 
@@ -214,16 +217,16 @@ export default async function handler(req, res) {
         // Mapping Array berdasarkan dokumentasi Gate.io Spot:
         // [0:t, 1:v_quote, 2:c, 3:h, 4:l, 5:o, 6:sum_base, 7:window_closed]
         const data = result.data;
+        const timestampUTC = convertUnixTimestampToUTC(data[data.length - 1][0]);
         const closes = data.map(d => Number(d[2]));
         const highs = data.map(d => Number(d[3]));
         const lows = data.map(d => Number(d[4]));
         const opens = data.map(d => Number(d[5]));
         const volumes = data.map(d => Number(d[6]));
 
-        const calc = calculateMetrics(highs, lows, closes, opens, volumes);
-        const timestampUTC = convertUnixTimestampToUTC(data[data.length - 1][0]);
+        const calc = calculateMetrics(timestampUTC, highs, lows, closes, opens, volumes);
 
-        return { symbol: result.symbol, timestamp: timestampUTC, ...calc };
+        return { symbol: result.symbol, ...calc };
     });
 
     res.status(200).json({ status: 'Success', data: finalResultArray });
