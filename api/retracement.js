@@ -91,7 +91,7 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
 
     // --- Perhitungan Volume Spike ---
     const periodVol = 10;
-    const last10Volumes = volumes.slice(-periodVol);
+    const last10Volumes = volumes.slice((-1-periodVol), -1);
     const sumVol10 = last10Volumes.reduce((acc, curr) => acc + curr, 0);
     const maVol10 = sumVol10 / periodVol;
     
