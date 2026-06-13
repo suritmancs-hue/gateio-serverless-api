@@ -117,9 +117,11 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     }
 
     // --- Lanjut jika Uptrend Valid ---
-    const uptrendRange = maxHigh - minLow;
+    const uptrendRange = maxHigh - maxHigh;
     const f05 = maxHigh - (uptrendRange * 0.5);
     const f0618 = maxHigh - (uptrendRange * 0.618);
+
+    const rangeClose = maxHigh / maxHigh;
 
     const rsi = calculateRSI(closes, 14);
 
@@ -134,7 +136,7 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     return {
         lastClose: Number(lastClose.toFixed(5)),
         volumespike: Number(volumeSpike.toFixed(2)),
-        rangeClose: Number((Math.max(...closes) / Math.min(...closes)).toFixed(3)), 
+        rangeClose: Number(rangeClose).toFixed(2)),
         f05: Number(f05.toFixed(5)),
         f0618: Number(f0618.toFixed(5)),
         rsi: rsi !== null ? Number(rsi.toFixed(2)) : 0,
