@@ -216,12 +216,11 @@ export default async function handler(req, res) {
             return;
         }
         
-        syncData.timestampUTC = convertUnixTimestampToUTC(synchronizedData[synchronizedData.length - 1].t);
-        syncData.highsArray = synchronizedData.map(d => Number(d.h)).slice(-CANDLE_REQUIRED_COMPLETED);
-        syncData.lowsArray = synchronizedData.map(d => Number(d.l)).slice(-CANDLE_REQUIRED_COMPLETED);
-        syncData.closesArray = synchronizedData.map(d => Number(d.c)).slice(-CANDLE_REQUIRED_COMPLETED);
-        syncData.opensArray = synchronizedData.map(d => Number(d.o)).slice(-CANDLE_REQUIRED_COMPLETED);
-        syncData.volumesArray = synchronizedData.map(d => Number(d.sum)).slice(-CANDLE_REQUIRED_COMPLETED);
+        syncData.highsArray = synchronizedData.map(d => Number(d[3])).slice(-CANDLE_REQUIRED_COMPLETED); // Indeks 3 adalah High
+        syncData.lowsArray = synchronizedData.map(d => Number(d[4])).slice(-CANDLE_REQUIRED_COMPLETED);  // Indeks 4 adalah Low
+        syncData.closesArray = synchronizedData.map(d => Number(d[2])).slice(-CANDLE_REQUIRED_COMPLETED); // Indeks 2 adalah Close
+        syncData.opensArray = synchronizedData.map(d => Number(d[5])).slice(-CANDLE_REQUIRED_COMPLETED);  // Indeks 5 adalah Open
+        syncData.volumesArray = synchronizedData.map(d => Number(d[6])).slice(-CANDLE_REQUIRED_COMPLETED); // Indeks 6 adalah Volume Base
     });
 
     const finalResultArray = symbols.map(symbol => {
