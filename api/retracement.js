@@ -9,14 +9,9 @@ const CONCURRENCY_LIMIT = 10;
 const DELAY_MS = 335;
 
 // --- Konfigurasi Endpoint Gate.io ---
-const GATEIO_STATS_URL = 'https://api.gateio.ws/api/v4/futures/usdt/contract_stats';
-const GATEIO_CANDLE_URL = 'https://api.gateio.ws/api/v4/futures/usdt/candlesticks';
+const GATEIO_CANDLE_URL = 'https://api.gateio.ws/api/v4/spot/candlesticks';
 const CANDLE_INTERVAL = '4h';
-
-// --- Konfigurasi Konstanta Perhitungan ---
 const CANDLE_REQUIRED_COMPLETED = 100;
-const STATS_REQUIRED_COMPLETED = 100; 
-const STATS_LIMIT = STATS_REQUIRED_COMPLETED + 145; // Buffer ekstra
 
 // Asumsi interval '4h' = 14400 detik (untuk perhitungan waktu mundur)
 const INTERVAL_SECONDS = 14400;
@@ -160,80 +155,37 @@ export default async function handler(req, res) {
         return res.status(405).send('Metode tidak diizinkan.');
     }
     
-    const { symbols, config } = req.body;
-    console.log(`Menerima request untuk ${symbols.length} simbol.`);
+    const { symbols } = req.body;
     
-    const CUSTOM_HEADERS = config.CUSTOM_HEADERS || {};
-    const syncMap = new Map();
-    symbols.forEach(symbol => syncMap.set(symbol, { statsCompleted: [], highsArray: [], lowsArray: [], closesArray: [], opensArray: [], volumesArray: [] }));
-
-    const statsRequests = symbols.map(symbol => ({ 
-        url: `${GATEIO_STATS_URL}?contract=${symbol}&limit=${STATS_LIMIT}`, 
-        type: 'stats', symbol: symbol 
+    // Siapkan request khusus untuk Spot Candlesticks
+    // limit 100 akan mengambil 100 data candle terbaru
+    const candleRequests = symbols.map(symbol => ({ 
+        url: `${GATEIO_CANDLE_URL}?currency_pair=${symbol}&interval=${CANDLE_INTERVAL}&limit=${CANDLE_REQUIRED_COMPLETED}`, 
+        type: 'candle', 
+        symbol: symbol 
     }));
 
-    const statsResults = await executeBatchFetch(statsRequests, CUSTOM_HEADERS);
-    const candleRequests = [];
+    const candleResults = await executeBatchFetch(candleRequests, {});
 
-    statsResults.forEach(result => {
-        if (!result.data || result.error) {
-            console.log(`Error Stats untuk ${result.symbol}: ${result.error || 'Data kosong'}`);
-            return;
-        }
-        const completedStats = result.data.slice(0, result.data.length - 1); 
-        if (completedStats.length < STATS_REQUIRED_COMPLETED) {
-            console.log(`Stats kurang untuk ${result.symbol}: Hanya dapat ${completedStats.length} data.`);
-            return;
+    const finalResultArray = candleResults.map(result => {
+        if (!result.data || result.data.length < CANDLE_REQUIRED_COMPLETED) {
+            console.log(`Data kurang untuk ${result.symbol}: ${result.data ? result.data.length : 0}`);
+            return { symbol: result.symbol, timestamp: 'Data Kurang', lastClose: null };
         }
 
-        const syncData = syncMap.get(result.symbol);
-        syncData.statsCompleted = completedStats;
-        const latestStatsTimestamp = completedStats[completedStats.length - 1].time;
-        const start = latestStatsTimestamp - (CANDLE_REQUIRED_COMPLETED * INTERVAL_SECONDS);
-        
-        candleRequests.push({ 
-            url: `${GATEIO_CANDLE_URL}?contract=${result.symbol}&interval=${CANDLE_INTERVAL}&from=${start}&to=${latestStatsTimestamp}`, 
-            type: 'candle', symbol: result.symbol 
-        });
-    });
-    
-    console.log(`Memulai fetch ${candleRequests.length} candle request.`);
-    const candleResults = await executeBatchFetch(candleRequests, CUSTOM_HEADERS);
+        // Mapping Array berdasarkan dokumentasi Gate.io Spot:
+        // [0:t, 1:v_quote, 2:c, 3:h, 4:l, 5:o, 6:sum_base, 7:window_closed]
+        const data = result.data;
+        const closes = data.map(d => Number(d[2]));
+        const highs = data.map(d => Number(d[3]));
+        const lows = data.map(d => Number(d[4]));
+        const opens = data.map(d => Number(d[5]));
+        const volumes = data.map(d => Number(d[6]));
 
-    candleResults.forEach(result => {
-        if (!result.data || result.error) {
-            console.log(`Error Candle untuk ${result.symbol}: ${result.error || 'Data kosong'}`);
-            return;
-        }
-        const syncData = syncMap.get(result.symbol);
-        
-        // --- LOG PENTING UNTUK DEBUG ---
-        const synchronizedData = result.data.filter(c => syncData.statsCompleted.find(s => s.time === c.t));
-        console.log(`Sinkronisasi ${result.symbol}: Diterima ${result.data.length} candle, setelah sinkron tersisa ${synchronizedData.length}.`);
+        const calc = calculateMetrics(highs, lows, closes, opens, volumes);
+        const timestampUTC = convertUnixTimestampToUTC(data[data.length - 1][0]);
 
-        if (synchronizedData.length < CANDLE_REQUIRED_COMPLETED) {
-            console.log(`Data tidak cukup setelah sinkronisasi untuk ${result.symbol}: ${synchronizedData.length} < ${CANDLE_REQUIRED_COMPLETED}`);
-            return;
-        }
-        
-        syncData.highsArray = synchronizedData.map(d => Number(d[3])).slice(-CANDLE_REQUIRED_COMPLETED); // Indeks 3 adalah High
-        syncData.lowsArray = synchronizedData.map(d => Number(d[4])).slice(-CANDLE_REQUIRED_COMPLETED);  // Indeks 4 adalah Low
-        syncData.closesArray = synchronizedData.map(d => Number(d[2])).slice(-CANDLE_REQUIRED_COMPLETED); // Indeks 2 adalah Close
-        syncData.opensArray = synchronizedData.map(d => Number(d[5])).slice(-CANDLE_REQUIRED_COMPLETED);  // Indeks 5 adalah Open
-        syncData.volumesArray = synchronizedData.map(d => Number(d[6])).slice(-CANDLE_REQUIRED_COMPLETED); // Indeks 6 adalah Volume Base
-    });
-
-    const finalResultArray = symbols.map(symbol => {
-        const syncData = syncMap.get(symbol);
-        let calc = { lastClose: null, volumespike: null, rangeClose: null, f05: null, f0618: null, rsi: null, lastChange: null };
-        
-        if (syncData.closesArray.length === CANDLE_REQUIRED_COMPLETED) {
-            calc = calculateMetrics(syncData.highsArray, syncData.lowsArray, syncData.closesArray, syncData.opensArray, syncData.volumesArray);
-        } else {
-            console.log(`Hasil Perhitungan untuk ${symbol}: Data Kurang (Jumlah closesArray: ${syncData.closesArray.length})`);
-        }
-        
-        return { symbol, timestamp: syncData.timestampUTC || 'Data Kurang', ...calc }; 
+        return { symbol: result.symbol, timestamp: timestampUTC, ...calc };
     });
 
     res.status(200).json({ status: 'Success', data: finalResultArray });
