@@ -228,6 +228,8 @@ export default async function handler(req, res) {
         const opens = data.map(d => Number(d[5]));
         const volumes = data.map(d => Number(d[6]));
 
+        console.log(timestampUTC);
+
         const calc = calculateMetrics(timestampUTC, highs, lows, closes, opens, volumes);
 
         return { symbol: result.symbol, ...calc };
