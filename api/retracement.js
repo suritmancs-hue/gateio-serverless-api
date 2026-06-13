@@ -226,8 +226,12 @@ export default async function handler(req, res) {
 
         const calc = calculateMetrics(highs, lows, closes, opens, volumes);
 
-        const timestamp = convertUnixTimestampToUTC(data[data.length - 1][0]);
-        // Jika hasil timestamp adalah string kosong, kita paksa logging untuk debug
+        // --- Logika Timestamp ---
+        const lastCandle = data[data.length - 1];
+        const rawTimestamp = lastCandle ? lastCandle[0] : null;
+        const timestamp = convertUnixTimestampToUTC(Number(rawTimestamp));
+
+        // Logging aman
         if (timestamp === "") {
             console.log(`Debug: Timestamp gagal dikonversi untuk simbol ${result.symbol}. Raw value:`, rawTimestamp);
         }
