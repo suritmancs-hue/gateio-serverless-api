@@ -117,11 +117,11 @@ function calculateMetrics(highs, lows, closes, opens, volumes) {
     }
 
     // --- Lanjut jika Uptrend Valid ---
-    const uptrendRange = maxHigh - maxHigh;
+    const uptrendRange = maxHigh - minLow;
     const f05 = maxHigh - (uptrendRange * 0.5);
     const f0618 = maxHigh - (uptrendRange * 0.618);
 
-    const rangeClose = maxHigh / maxHigh;
+    const rangeClose = maxHigh / minLow;
 
     const rsi = calculateRSI(closes, 14);
 
