@@ -10,7 +10,6 @@ const DELAY_MS = 335;
 
 // --- Konfigurasi Endpoint Gate.io ---
 const GATEIO_CANDLE_URL = 'https://api.gateio.ws/api/v4/spot/candlesticks';
-const CANDLE_INTERVAL = '1h';
 const CANDLE_REQUIRED_COMPLETED = 100;
 
 // ------------------------------------------
@@ -196,12 +195,11 @@ export default async function handler(req, res) {
         return res.status(405).send('Metode tidak diizinkan.');
     }
     
-    const { symbols } = req.body;
+    const { symbols, interval } = req.body;
     
-    // Siapkan request khusus untuk Spot Candlesticks
-    // limit 100 akan mengambil 100 data candle terbaru
+    // request untuk Spot Candlesticks
     const candleRequests = symbols.map(symbol => ({ 
-        url: `${GATEIO_CANDLE_URL}?currency_pair=${symbol}&interval=${CANDLE_INTERVAL}&limit=${CANDLE_REQUIRED_COMPLETED}`, 
+        url: `${GATEIO_CANDLE_URL}?currency_pair=${symbol}&interval=${interval}&limit=${CANDLE_REQUIRED_COMPLETED}`, 
         type: 'candle', 
         symbol: symbol 
     }));
